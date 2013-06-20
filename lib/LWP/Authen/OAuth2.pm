@@ -6,7 +6,7 @@ use warnings FATAL => 'all';
 
 =head1 NAME
 
-LWP::Authen::OAuth2 - The great new LWP::Authen::OAuth2!
+LWP::Authen::OAuth2 - Make requests to OAuth2 APIs.
 
 =head1 VERSION
 
@@ -19,7 +19,16 @@ our $VERSION = '0.01';
 
 =head1 SYNOPSIS
 
-Quick summary of what the module does.
+OAuth2 is a protocol that let's a I<user> tell a I<service provider> that a
+I<consumer> has permission to use the I<service provider>'s APIs to do things
+that require access to the I<user>'s account.  For a full explanation of the
+protocol, the terminology, and this module's role in the process, see
+L<LWP::Authen::OAuth2::Overview>.
+
+LWP::Authen::OAuth2 is a subclass of L<LWP::UserAgent> which simplifies your
+life as a consumer by providing methods to make the initial permission
+handshake, and then letting you send signed requests to the service
+provider's API.
 
 Perhaps a little code snippet.
 
@@ -28,39 +37,18 @@ Perhaps a little code snippet.
     my $foo = LWP::Authen::OAuth2->new();
     ...
 
-=head1 EXPORT
-
-A list of functions that can be exported.  You can delete this section
-if you don't export anything, such as for a purely object-oriented module.
-
-=head1 SUBROUTINES/METHODS
-
-=head2 function1
-
-=cut
-
-sub function1 {
-}
-
-=head2 function2
-
-=cut
-
-sub function2 {
-}
-
 =head1 AUTHOR
 
 Ben Tilly, C<< <btilly at gmail.com> >>
 
 =head1 BUGS
 
-Please report any bugs or feature requests to C<bug-lwp-authen-oauth2 at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=LWP-Authen-OAuth2>.  I will be notified, and then you'll
-automatically be notified of progress on your bug as I make changes.
-
-
-
+Please report any bugs or feature requests to
+C<bug-lwp-authen-oauth2 at rt.cpan.org>, or through
+the web interface at
+L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=LWP-Authen-OAuth2>.  I will
+be notified, and then you'll automatically be notified of progress on your
+bug as I make changes.
 
 =head1 SUPPORT
 
@@ -72,6 +60,10 @@ You can find documentation for this module with the perldoc command.
 You can also look for information at:
 
 =over 4
+
+=item * Github (submit patches here)
+
+L<https://github.com/btilly/perl-oauth2>
 
 =item * RT: CPAN's request tracker (report bugs here)
 
@@ -94,6 +86,11 @@ L<http://search.cpan.org/dist/LWP-Authen-OAuth2/>
 
 =head1 ACKNOWLEDGEMENTS
 
+Thanks to L<Rent.com|http://www.rent.com> for their generous support in
+letting me develop and release this module.  My thanks also to Nick
+Wellnhofer <wellnhofer@aevum.de> for Net::Google::Analytics::OAuth2 which
+was very enlightening while I was trying to figure out the details of how to
+connect to Google with OAuth2.
 
 =head1 LICENSE AND COPYRIGHT
 
