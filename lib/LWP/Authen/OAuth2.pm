@@ -25,17 +25,56 @@ that require access to the I<user>'s account.  For a full explanation of the
 protocol, the terminology, and this module's role in the process, see
 L<LWP::Authen::OAuth2::Overview>.
 
-LWP::Authen::OAuth2 is a subclass of L<LWP::UserAgent> which simplifies your
-life as a consumer by providing methods to make the initial permission
-handshake, and then letting you send signed requests to the service
-provider's API.
+L<LWP::Authen::OAuth2> is a subclass of L<LWP::UserAgent> providing
+convenience methods to help the consumer go through the initial permission
+handshake, and after that to send signed requests to the service provider's
+API, including retry logic for access token expiration.
+
+However this module does NOT address storage of sensitive information.
+There are sufficient hooks provided to solve that problem, but how you do it
+is entirely up to you.
 
 Perhaps a little code snippet.
 
     use LWP::Authen::OAuth2;
 
-    my $foo = LWP::Authen::OAuth2->new();
-    ...
+    # Constructor
+    my $oauth2 = LWP::Authen::OAuth2->new(
+                     client_id => "Public from service provider",
+                     client_secret => "s3cr3t fr0m svc prov",
+                     service_provider => "Google",
+                 );
+
+    # URL for user to visit to start the process.
+    my $url = $oauth2->authorization_url(
+                  redirect_uri => "how code comes back to you",
+              );
+
+    # Get your token from the service provider.
+    $oauth2->get_access_token(code => $code);
+
+    # Access the API.  Consult the service_provider's documentation for when
+    # to do which.
+    $oauth2->get($url, %values);
+    $oauth2->post($url, %values);
+    $oauth2->put($url, %values);
+
+    # Refresh your access token - usually done for you automatically.
+    $oauth2->refresh_access_token();
+
+    # Get your token as a string you can easily store, pass around, etc.
+    my $token_string = $oauth2->token->serialize;
+
+    # Next time, try to skip the handshake.  Whether this works depens on
+    # whether you have a request token, which is up to the service provider
+    # and depends on how you are set up there.  See the overview for
+    # details.
+    my $oauth2 = LWP::Authen::OAuth2->new(
+                     client_id => "Public from service provider",
+                     client_secret => "s3cr3t fr0m svc prov",
+                     service_provider => "Google",
+                     token => $token_string,
+                 );
 
 =head1 AUTHOR
 
