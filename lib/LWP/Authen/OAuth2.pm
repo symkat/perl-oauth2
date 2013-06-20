@@ -19,7 +19,7 @@ our $VERSION = '0.01';
 
 =head1 SYNOPSIS
 
-OAuth2 is a protocol that let's a I<user> tell a I<service provider> that a
+OAuth 2 is a protocol that let's a I<user> tell a I<service provider> that a
 I<consumer> has permission to use the I<service provider>'s APIs to do things
 that require access to the I<user>'s account.  For a full explanation of the
 protocol, the terminology, and this module's role in the process, see
@@ -28,21 +28,28 @@ L<LWP::Authen::OAuth2::Overview>.
 L<LWP::Authen::OAuth2> is a subclass of L<LWP::UserAgent> providing
 convenience methods to help the consumer go through the initial permission
 handshake, and after that to send signed requests to the service provider's
-API, including retry logic for access token expiration.
+API, including automatic retry logic when access tokens expire.
 
-However this module does NOT address storage of sensitive information.
-There are sufficient hooks provided to solve that problem, but how you do it
-is entirely up to you.
+This module will not work with OAuth 1.  For a module to help with that, see
+the similarly named but otherwise unrelated L<LWP::Authen::OAuth>.
 
-Perhaps a little code snippet.
+In the interest of focusing on one task, it is as important to know what this
+module does not do as it is to know what it does.  This module does none of
+the following necessary tasks for using OAuth 2: set up your client
+relationship with the service provider, script any of the necessary user
+interactions for the intial handshake, or provide any assistance with how
+you store private information beyond serializing/deserializing tokens to a
+string.
 
     use LWP::Authen::OAuth2;
 
-    # Constructor
+    # Constructor for the first time through.
     my $oauth2 = LWP::Authen::OAuth2->new(
                      client_id => "Public from service provider",
                      client_secret => "s3cr3t fr0m svc prov",
                      service_provider => "Google",
+                     # Optional hook, but recommended.
+                     on_refresh => \&store_tokens,
                  );
 
     # URL for user to visit to start the process.
@@ -59,21 +66,23 @@ Perhaps a little code snippet.
     $oauth2->post($url, %values);
     $oauth2->put($url, %values);
 
-    # Refresh your access token - usually done for you automatically.
+    # Refresh your access token - if possible done for you automatically
+    # under the hood.
     $oauth2->refresh_access_token();
 
     # Get your token as a string you can easily store, pass around, etc.
-    my $token_string = $oauth2->token->serialize;
+    my $token_string = $oauth2->tokens->serialize;
 
-    # Next time, try to skip the handshake.  Whether this works depens on
-    # whether you have a request token, which is up to the service provider
-    # and depends on how you are set up there.  See the overview for
-    # details.
+    # Constructor for the second time through if you have tokens.  Whether
+    # this works depends on the service provider, and you won't know for
+    # sure until you try their API.
     my $oauth2 = LWP::Authen::OAuth2->new(
                      client_id => "Public from service provider",
                      client_secret => "s3cr3t fr0m svc prov",
                      service_provider => "Google",
-                     token => $token_string,
+                     tokens => $token_string,
+                     # Optional hook, but recommended.
+                     on_refresh => \&store_tokens,
                  );
 
 =head1 AUTHOR
@@ -133,7 +142,7 @@ connect to Google with OAuth2.
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2013 Ben Tilly.
+Copyright 2013 Rent.com.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the the Artistic License (2.0). You may obtain a
