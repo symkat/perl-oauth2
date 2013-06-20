@@ -168,32 +168,32 @@ towards being able to implement the protocol yourself.
 
 =item consumer
 
-The B<consumer> is the one who wants to be able to use an API to access an
+The I<consumer> is the one who wants to be able to use an API to access an
 account that exists on another website.  If you are a software developer,
 you are probably the consumer.
 
 =item user
 
-The B<user> is the entity (person or company) who wishes to let the
-B<consumer> access their account.
+The I<user> is the entity (person or company) who wishes to let the
+I<consumer> access their account.
 
 =item service provider
 
-The B<service provider> is the website which hosts the account, and offers
+The I<service provider> is the website which hosts the account, and offers
 the API.  For example, Google.
 
 =item flow
 
 Several different mechanisms are used to pass information during the
-handshake, ranging from sending redirects to the B<user> to telling the
-B<user> to enter data by hand.  The exact variation used is called your
-B<flow>.
+handshake, ranging from sending redirects to the I<user> to telling the
+I<user> to enter data by hand.  The exact variation used is called your
+I<flow>.
 
 =item client_id
 
-The B<client_id> is a public ID that tells the B<service provider> both who
-the B<consumer> is, and what B<flow> to use.  Being public, it can be shared
-with the B<user>.  The details of how this is assigned are between the
+The I<client_id> is a public ID that tells the I<service provider> both who
+the I<consumer> is, and what I<flow> to use.  Being public, it can be shared
+with the I<user>.  The details of how this is assigned are between the
 I<consumer> and the I<service provider>.
 
 =item client_secret
@@ -216,16 +216,16 @@ it should tell the I<user> to cut and paste some information.
 
 =item state
 
-The B<state> is an optional piece of information that can be created by the
-B<consumer> then addedto all requests as an extra piece of protection
+The I<state> is an optional piece of information that can be created by the
+I<consumer> then addedto all requests as an extra piece of protection
 against forgery.  It is optional for most I<flow>s, but is recommended by
 the OAuth 2 spec, and might be required by the I<service provider>.
 
 =item Authorization Endpoint
 
 The I<Authorization Endpoint> is the URL provided by the I<service provider>
-for the purpose of sending requests to authorize the B<consumer> to access
-the B<user>'s account.
+for the purpose of sending requests to authorize the I<consumer> to access
+the I<user>'s account.
 
 =item response_type
 
@@ -241,13 +241,13 @@ written in Perl could use any I<response_type> other than C<code>.
 
 =item authorization_url
 
-This is the URL on the B<service provider>'s website that the B<user> goes to
-in order to let the B<service provider> know what authorization is being
+This is the URL on the I<service provider>'s website that the I<user> goes to
+in order to let the I<service provider> know what authorization is being
 requested.
 
-It is constructed as the B<Authorization Endpoint> with get parameters added
-for the B<response_type>, B<client_id>, B<redirect_uri>, optionally the
-B<state>, and any other arguments that the B<service provider> wishes to
+It is constructed as the I<Authorization Endpoint> with get parameters added
+for the I<response_type>, I<client_id>, I<redirect_uri>, optionally the
+I<state>, and any other arguments that the I<service provider> wishes to
 require or make available for your I<flow>.
 
 =item code
@@ -262,8 +262,8 @@ up, finish the handshake, and then redirect the user elsewhere.
 
 =item Token Endpoint
 
-The B<Token Endpoint> is the URL provided by the B<service provider>
-for the purpose of sending requests from the B<consumer> to get tokens
-allowing access to the B<user>'s account.
+The I<Token Endpoint> is the URL provided by the I<service provider>
+for the purpose of sending requests from the I<consumer> to get tokens
+allowing access to the I<user>'s account.
 
 =back
