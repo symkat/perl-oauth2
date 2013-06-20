@@ -1,0 +1,269 @@
+=head1 Introduction
+
+This is an overview of OAuth 2, the terminology around it, and what
+L<LWP::Authen::OAuth2> does to make it easier.  Whether or not you
+eventually use L<LWP::Authen::OAuth2>, this document tries to be a good
+starting point for learning OAuth 2.
+
+There is, unfortunately, a lot of OAuth 2 specific terminology that gets
+used.  That terminology is likely to be consistently used in any
+documentation from anyone else, so it is used here.  That will be kept
+I<in italics> in this document to help you keep track.
+
+In OAuth 2 some I<user> with an account on a I<service provider>'s website
+would like to give some third party I<consumer> access to the account.  The
+OAuth 2 protocol sets up a 3-way handshake through which this permission
+gets securely granted.  Once granted, the I<consumer> has access to the
+I<service provider>'s API.
+
+That handshake requires a series of specific interactions between the three
+parties.  L<LWP::Authen::OAuth2> provides convenience methods to simplify the
+requests that the I<consumer> needs to construct which go to the
+I<service provider>.  In the spirit of do only one thing, it does NOTHING
+else.  If you are the I<consumer> you will still need to build the
+interactions with the I<user>, store data, and figure out the
+I<service provider>'s API.  If you are not the I<consumer> then this module
+is not for you.
+
+=head1 Basic OAuth 2 Interactions
+
+The protocol describes several variations on how the I<user> interacts with
+the I<consumer> and the I<service provider> (redirects, cut and paste
+information, etc), but the basic pattern of interaction is constant.  If
+you want more details about how any of these steps are done, it is
+explained in the L</Terminology> section.
+
+=over 4
+
+=item * Construct Authorization URL
+
+To start, the I<consumer> constructs an authorization URL which will tell
+the I<service provider> that permissions are granted.
+L<LWP::Authen::OAuth2> does this step.
+
+=item * I<User> Tells I<Service Provider> To Authorize
+
+The I<user> goes to the authorization URL, and interacts with the
+I<service provider>.  The I<consumer> is not involved.
+
+=item * I<User> Takes I<Code> Back To I<Consumer>
+
+If all went well in the last step, the I<user> is given a one-use I<code> to
+take back to the I<consumer>.  L<LWP::Authen::OAuth2> DOES NOT help with this
+step.
+
+=item * Get Access Token
+
+The I<consumer> uses this I<code> together with secret information to
+request a temporary I<access_token>.  If successful, a I<request_token>
+might also be provided.  Success is not guaranteed.  Doubly not if you trip a
+security check on the I<service provider>'s side such as using the I<code>
+twice, sending suspicious requests, or anything else that they don't like.
+The errors you get on failure are deliberately useless.  (They want the bad
+guys to get frustrated and give up, not to figure out how to pretend to be
+good guys.)
+
+L<LWP::Authen::OAuth2> can make this request, and do useful things with a
+successful answer.  On failure, it can do no better than die with a useless
+message.
+
+=item * Make Authorized Request
+
+Once the I<consumer> has an unexpired I<access_token>, it can be used to
+sign API requests to the I<service provider>.  L<LWP::Authen::OAuth2> will
+sign these requests, but the details of the requests that need to be made
+are between the I<consumer> and the I<service provider>.  Hopefully there is
+accurate and useful documentation available to you.
+
+=item * Refresh Access Token
+
+As noted, the I<access_token> is temporary.  If the I<consumer> was given a
+I<request_token>, that can be sent with secret information, and with luck a
+new I<access_token> will be sent back.  All of the caveats for getting the
+original access token apply to refreshing one.
+
+If a I<request_token> was given then L<LWP::Authen::OAuth2> is able to
+detect expiration, send this request, and then go back to send the original
+API request.  If no I<request_token> is available, then
+L<LWP::Authen::OAuth2> can die with an informative message, and it is up to
+the programmer to notice, and do something useful.  Like ask the user to
+authorize access again.
+
+=item * Revoke Access
+
+The I<service provider> may provide a way for the I<user> to review what
+access has been granted to whom, and selectively revoke access.  If
+access was revoked, then the I<request_token> that the I<consumer> has
+becomes useless.
+
+=back
+
+=head1 Becoming a I<Consumer>
+
+(There is a lot of jargon here.  Hopefully the meaning can be guess from
+context.  If not, then skip ahead to L</Terminology> for exact
+definitions.)
+
+To become a I<consumer>, you first need to register with the
+I<service provider>.  How that happens is up to them.  But once done you
+will have a public I<client_id>, a private I<client_secret>, the
+I<service provider> will know the exact variant (called a I<flow>) of the
+protocol to use with you, and the I<service provider> and you will have
+agreed on a I<redirect_uri> that the I<user> goes to to deliver your
+I<code> back to you.  (Frequently the I<redirect_uri> will simply be a
+C<https://...> URL that you control.)  There may also be
+I<service provider> specific tweaks to the protocol that you need to study.
+
+(It is worth looking for a L<LWP::Authen::OAuth2::ServiceProvider::Foo>
+class.  If one is found, then it is likely to offer I<service provider>
+specific advice on how to register, and differences from a generic
+I<service provider>.)
+
+You will need to figure out how to tell the I<user> that you want access,
+give the I<authorization_url> to the I<user>, receive the I<code> from the
+user, figure out how you want to store and manage tokens, and how to use the
+I<service provider>'s API.  L<LWP::Authen::OAuth2> does not help with any of
+that.
+
+The rest L<LWP::Authen::OAuth2> does help with, but you still need to do
+work.
+
+To construct L<LWP::Authen::OAuth2> objects you will need to set up a
+L<LWP::Authen::OAuth2::ServiceProvider>.  This requires a bit of
+initialization information (a couple of URLs, optionally some information
+about extra required and/or optional arguments that are specific to that
+I<service provider>) which either can be passed directly into the
+L<LWP::Authen::OAuth2> constructor, or can be picked up from a module of
+the form L<LWP::Authen::OAuth2::ServiceProvider::Foo> when you pass
+C<service_provider =E<gt> "Foo"> in to the constructor.
+
+(If no such class exists for your I<service provider>, please consider
+submitting one.)
+
+Once you can create L<LWP::Authen::OAuth2> objects, you can construct your
+I<authorization_url>.  Once the I<user> gives you back a I<code> you need
+to call the C<get_access_token> method.  After that you can make your API
+calls.  You can also, once you have authorization, serialize your tokens in
+a form that can be stored in a session, database, or wherever, and then be
+accessed anywhere else in your code where you want to access the API with
+that user's permissions.
+
+If you choose not to use L<LWP::Authen::OAuth2> then you will still need to
+find a way to do all of those steps.  (Some other module may help,
+probably by making a different subset of the work easy for you.)
+
+=head1 Terminology
+
+There is a lot of specific terminology that gets thrown around, and there
+are a lot of specific pieces to the requests that are made.  Here is a list
+of those terms, along with an explanation of what each one is.  In the
+process of defining those, it becomes easy to say exactly what information
+is passed at each step, so I do.
+
+This list is presented in a logical order that builds on itself.  If you
+just read through this in order, you should wind up most of the way
+towards being able to implement the protocol yourself.
+
+=over 4
+
+=item consumer
+
+The B<consumer> is the one who wants to be able to use an API to access an
+account that exists on another website.  If you are a software developer,
+you are probably the consumer.
+
+=item user
+
+The B<user> is the entity (person or company) who wishes to let the
+B<consumer> access their account.
+
+=item service provider
+
+The B<service provider> is the website which hosts the account, and offers
+the API.  For example, Google.
+
+=item flow
+
+Several different mechanisms are used to pass information during the
+handshake, ranging from sending redirects to the B<user> to telling the
+B<user> to enter data by hand.  The exact variation used is called your
+B<flow>.
+
+=item client_id
+
+The B<client_id> is a public ID that tells the B<service provider> both who
+the B<consumer> is, and what B<flow> to use.  Being public, it can be shared
+with the B<user>.  The details of how this is assigned are between the
+I<consumer> and the I<service provider>.
+
+=item client_secret
+
+The I<client_secret> is a somewhat private piece of information that the
+I<consumer> can pass to the I<service provider> to prove that the request
+really comes from the I<consumer>.  How private this piece of information is
+considered will depend on the I<flow>.  A secret that is kept on a webserver
+is expected to be completely private.  One that is inside of an application
+running on the I<user>'s machine is trusted less.  (The consequences of this
+are up to the I<service provider>.)
+
+=item redirect_uri
+
+The I<service provider> needs a way to tell the I<user> how to pass
+information back to the I<consumer> in a secure way.  That is provided by the
+I<redirect_uri> which can be anything from a C<https://...> URL that the
+I<consumer> controls to a string that lets the I<service provider> know that
+it should tell the I<user> to cut and paste some information.
+
+=item state
+
+The B<state> is an optional piece of information that can be created by the
+B<consumer> then addedto all requests as an extra piece of protection
+against forgery.  It is optional for most I<flow>s, but is recommended by
+the OAuth 2 spec, and might be required by the I<service provider>.
+
+=item Authorization Endpoint
+
+The I<Authorization Endpoint> is the URL provided by the I<service provider>
+for the purpose of sending requests to authorize the B<consumer> to access
+the B<user>'s account.
+
+=item response_type
+
+The I<response_type> tells the I<service provider> what kind of information
+it is supposed to pass back.  This usually has to be C<code>.  However some
+I<service provider>s in some I<flow>s will allow other values.  For example
+Google has a I<flow> for JavaScript applications that want to send AJAX
+requests to Google, and in that I<flow> the I<response_type> could be
+C<token>.
+
+I am not aware of a I<service provider> and I<flow> where a I<consumer>
+written in Perl could use any I<response_type> other than C<code>.
+
+=item authorization_url
+
+This is the URL on the B<service provider>'s website that the B<user> goes to
+in order to let the B<service provider> know what authorization is being
+requested.
+
+It is constructed as the B<Authorization Endpoint> with get parameters added
+for the B<response_type>, B<client_id>, B<redirect_uri>, optionally the
+B<state>, and any other arguments that the B<service provider> wishes to
+require or make available for your I<flow>.
+
+=item code
+
+If the I<response_type> is set to C<code> (which should be the case), the
+I<service provider> will generate a one use I<code> to give to the user to
+take back to the I<consumer>.  Depending on the I<flow> this could happen
+with no effort on the part of the I<user>.  For example the I<user> can be
+redirected to the I<redirect_uri> with the I<code> (and optionally the
+I<state>) passed as get parameters.  The web server would then pick these
+up, finish the handshake, and then redirect the user elsewhere.
+
+=item Token Endpoint
+
+The B<Token Endpoint> is the URL provided by the B<service provider>
+for the purpose of sending requests from the B<consumer> to get tokens
+allowing access to the B<user>'s account.
+
+=back
