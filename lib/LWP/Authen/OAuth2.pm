@@ -48,17 +48,16 @@ string.
                      client_id => "Public from service provider",
                      client_secret => "s3cr3t fr0m svc prov",
                      service_provider => "Google",
+                     request_url => "https://your.url.com/",
                      # Optional hook, but recommended.
                      on_refresh => \&store_tokens,
                  );
 
     # URL for user to visit to start the process.
-    my $url = $oauth2->authorization_url(
-                  redirect_uri => "how code comes back to you",
-              );
+    my $url = $oauth2->authorization_url();
 
-    # Get your token from the service provider.
-    $oauth2->get_access_token(code => $code);
+    # Get your tokens from the service provider.
+    $oauth2->request_tokens(code => $code);
 
     # Access the API.  Consult the service_provider's documentation for when
     # to do which.
@@ -80,6 +79,7 @@ string.
                      client_id => "Public from service provider",
                      client_secret => "s3cr3t fr0m svc prov",
                      service_provider => "Google",
+                     request_url => "https://your.url.com/",
                      tokens => $token_string,
                      # Optional hook, but recommended.
                      on_refresh => \&store_tokens,
