@@ -374,13 +374,121 @@ The I<grant_type> is the type of grant you expected to get based on the
 I<response_type> requested in the I<authorization_url>.  For a
 I<response_type> of C<code> (which is almost certainly what will be used
 with any I<consumer> written in Perl), the I<grant_type> has to be
-C<authorization_code>.  (Which in every other interaction is simply called
-the I<code>.  Lovely.  Required, useless, AND inconsistently named.)
+C<authorization_code>.  If they were being consistent, then that would be
+I<code> like it is everywhere else, but that's what the spec says.
+
+We will later encounter the I<grant_type> C<refresh_token>.  This fact
+makes it more useful than I<response_type> was.
 
 =item Access Token Request
 
 Once the I<consumer> has a I<code> the consumer can submit an
-I<Access Token Request> by sending a get (or post) request to the
-I<Token Endpoint> with the I<grant_type>, I<code>
+I<Access Token Request> by sending a POST request to the
+I<Token Endpoint> with the I<grant_type>, I<code>, I<client_id>,
+I<client_secret>, I<redirect_uri> and (if in the authorization code)
+the I<state>.  Your I<service provider> may also want you to authenticate
+in some other way.  You will get back a JSON response.
+
+An example request might look like this:
+
+    POST /o/oauth2/token HTTP/1.1
+    Host: accounts.google.com
+    Content-Type: application/x-www-form-urlencoded
+    
+    code=4/P7q7W91a-oMsCeLvIaQm6bTrgtp7&
+    client_id=8819981768.apps.googleusercontent.com&
+    client_secret={client_secret}&
+    redirect_uri=https://oauth2-login-demo.appspot.com/code&
+    grant_type=authorization_code
+
+and the response if you're lucky will look something like:
+
+    HTTP/1.1 200 OK
+    Content-Type: application/json;charset=UTF-8
+    Cache-Control: no-store
+    Pragma: no-cache
+    
+    {
+      "access_token":"1/fFAGRNJru1FTz70BzhT3Zg",
+      "expires_in":3920,
+      "token_type":"Bearer",
+      "request_token":"1/xEoDL4iW3cxlI7yDbSRFYNG01kVKM2C-259HOF2aQbI"
+    }
+
+Note that success is up to the I<service provider> which can decide not to
+give you tokens for any reason that they want, including you asked twice,
+they think the I<user> might be compromised, they don't like the I<consumer>,
+or the phase of the Moon.  (I am not aware of any I<service provider> that
+makes failure depend on the phase of the Moon, but the others are realistic
+examples.)
+
+The C<request_tokens> method of L<LWP::Authen::OAuth2> will make this
+request for you, read the JSON, and store the tokens.
+
+=item access_token
+
+An I<access_token> is a temporary token that gives the I<consumer> access to
+the I<user>'s data in the I<service provider>'s system.  In the above
+response the C<access_token> is the value of the token, C<expires_in> is the
+number of seconds it is good for in theory (practice tends to be close but
+not always exact), and C<token_type> specifies how it is supposed to be used.
+
+=item Bearer token
+
+A I<Bearer token> is a token that, until it expires, will works for anyone
+who has it.  In the above example any https request with a header of:
+
+    Authorization: Bearer 1/fFAGRNJru1FTz70BzhT3Zg
+
+is automatically authorized.  This is the most common type of I<access_token>
+but, depending on the I<service provider> and your I<flow>, you may be handed
+another type of token that has to be signed in a different way.
+
+Once you have completed your handshake, L<LWP::Authen::OAuth2> will
+automatically sign any C<get>, C<post>, or C<put> for you.
+
+=item request_token
+
+The above example also included a I<request_token>.  If you were given one,
+you can use it later to ask for a fresh I<access_token>.  Whether you get
+one is up to your I<service provider>, who is likely to decide that based on
+your I<flow>.
+
+=item Refresh Access Token
+
+If you have a I<request_token>, you can at any time send a
+I<Refresh Access Token> request.  This is a POST to the I<Token Endpoint>
+with the I<request_token>, I<client_id> and I<client_secret> arguments.  You
+also have to send a I<grant_type> of C<refresh_token>.
+
+Thus in the above case we'd send
+
+    POST /o/oauth2/token HTTP/1.1
+    Host: accounts.google.com
+    Content-Type: application/x-www-form-urlencoded
+    
+    request_token=1/xEoDL4iW3cxlI7yDbSRFYNG01kVKM2C-259HOF2aQbI&
+    client_id=8819981768.apps.googleusercontent.com&
+    client_secret={client_secret}&
+    grant_type=refresh_token
+
+and if lucky could get a response like
+
+    HTTP/1.1 200 OK
+    Content-Type: application/json;charset=UTF-8
+    Cache-Control: no-store
+    Pragma: no-cache
+    
+    {
+      "access_token":"ya29.AHES6ZSiArSow0zeKokajrri5gMBpGc6Sq",
+      "expires_in":3600,
+      "token_type":"Bearer",
+    }
+
+In L<LWP::Authen::OAuth2> this request can be made with the
+C<refresh_access_token> method.  But you don't have to do that.  This request
+will automatically be made for you when you try to access the API, it is
+noticed that the I<access_token> has expired, and there is a I<request_token>
+available.  And then your original request goes through unimpeded.
 
 =back

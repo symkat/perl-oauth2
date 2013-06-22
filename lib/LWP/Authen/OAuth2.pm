@@ -25,10 +25,10 @@ that require access to the I<user>'s account.  For a full explanation of the
 protocol, the terminology, and this module's role in the process, see
 L<LWP::Authen::OAuth2::Overview>.
 
-L<LWP::Authen::OAuth2> is a subclass of L<LWP::UserAgent> providing
-convenience methods to help the consumer go through the initial permission
-handshake, and after that to send signed requests to the service provider's
-API, including automatic retry logic when access tokens expire.
+L<LWP::Authen::OAuth2> proxies off of L<LWP::UserAgent> providing convenience
+methods to help the consumer go through the initial permission handshake, and
+after that to send signed requests to the service provider's API, including
+automatic retry logic when access tokens expire.
 
 This module will not work with OAuth 1.  For a module to help with that, see
 the similarly named but otherwise unrelated L<LWP::Authen::OAuth>.
