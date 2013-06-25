@@ -112,7 +112,7 @@ lucky, there will be a CPAN module (or modules) for the API (or APIs) that
 you want to use.  If those do not exist, please consider creating them.
 
 If no such classes exist, you can still use the module.  Just pass the
-necessary <service provider> facts in your call to
+necessary I<service provider> facts in your call to
 C<LWP::Authen::OAuth2-E<gt>new(...)> and an appropriate
 L<LWP::Authen::OAuth2::ServiceProvider> will be created for you on the fly.
 
