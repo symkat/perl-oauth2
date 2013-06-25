@@ -18,6 +18,135 @@ our $VERSION = '0.01';
 
 =head1 SYNOPSIS
 
+This is a base module for representing an OAuth 2 service provider.  It is
+implicitly constructed from the parameters to C<LWP::Authen::OAuth2->new>,
+and is automatically delegated to when needed.
+
+The first way to try to specify the service provider is with the parameters
+C<service_provider> and possibly C<flow>:
+
+    LWP::Authen::OAuth2->new(
+        ...
+        service_provider => "Foo",
+        flow => "Bar", # optional
+        ...
+    );
+
+The first parameter will cause L<LWP::Authen::OAuth2::ServiceProvider> to
+look for either C<LWP::Authen::OAuth2::ServiceProvider::Foo>, or if that is
+not found, for C<Foo>.  (If neither is present, an exception will be thrown.)
+The second parameter will be passed to that module which can choose to
+customize the service provider behavior based on the flow.
+
+The other way to specify the service provider is by passing in sufficient
+parameters to create a custom one on the fly:
+
+    LWP::Authen::OAuth2->new(
+        ...
+        authorization_endpoint => $authorization_endpoint,
+        token_endpoint => $token_endpoint,
+
+        # These are optional but advised if you're using strict mode
+        authorization_required_params => [...],
+        authorization_more_params => [...],
+        ...
+    );
+
+See L<LWP::Authen::OAuth2::Overview> if you are uncertain how to figure out
+the I<Authorization Endpoint> and I<Token Endpoint> from the service
+provider's documentation.
+
+=head1 KNOWN SERVICE PROVIDERS
+
+The following service providers are provided in this distribution, hopefully
+with useful defaults:
+
+=over 4
+
+=item * L<LWP::Authen::OAuth2::ServiceProvider::Google|Google>
+
+=back
+
+=head1 SUBCLASSING
+
+A minimal subclass for a given service provider should override the methods
+C<authorization_endpoint> and C<token_endpoint>.  For the benefit of people
+who choose to get the error checks of strict mode, please override
+C<authorization_required_params> and C<authorization_more_params> as well if
+the service provider requires or allows more than the default.  There is no
+harm in parameters being duplicated between these lists should your service
+provider require a parameter that is optional in the specification.
+
+Many service providers accept different parameters for different flows.  To
+accommodate that, a more complete subclass should override
+C<flow_class_by_name> to specify which class to use for each flow name.
+The name "default" should be sent to whatever flow most closely resembles
+I<webserver application> as that is the most likely flow for a Perl client to
+use.
+
+To accommodate the fact that so much of the specification can be specific to
+the service provider, most calls to C<LWP::Authen::OAuth2> are delegated to
+the service provider, and you are free to override any that you need to.
+
+=head1 CONTRIBUTING
+
+Patches contributing service provider subclasses to this distributions are
+encouraged.  Please make sure that you have done the following.
+
+=over 4
+
+=item * Implement it reasonably completely
+
+The more completely implemented, the better.
+
+=item * Name it properly
+
+The name should be of the form:
+
+    LWP::Authen::OAuth2::ServiceProvider::$ServiceProvider
+
+=item * List it
+
+It needs to be listed as a known service provider in this module.
+
+=item * Test it
+
+It is impossible to usefully test a service provider module without client
+secrets.  However you can have public tests that it compiles, and private
+tests that will, if someone supplies the necessary secrets, run fuller tests
+that all works.  See the existing unit tests for examples.
+
+=item * Include it
+
+Your files need to be included in the C<MANIFEST> in the root directory.
+
+=item * Document registration
+
+A developer should be able to read your module and know how to register
+themselves as a client of the service provider.
+
+=item * List Useful Flows
+
+Please list the flows that the service provider uses, with just enough
+detail that a developer can figure out which one to use.
+
+=item * Document important quirks
+
+If the service provider requires or allows useful parameters, try to mention
+them.
+
+=item * Document limitations
+
+If there are limitations in your implementation, please state them.
+
+=item * Link to official documentation
+
+If the service provider provides official OAuth 2 documentation, please link
+to it.  Ideally a developer will not need to refer to it, but should know how
+to find it.
+
+=back
+
 =head1 AUTHOR
 
 Ben Tilly, C<< <btilly at gmail.com> >>
