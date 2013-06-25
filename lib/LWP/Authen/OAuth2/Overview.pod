@@ -562,4 +562,5 @@ Ben Tilly, C<< <btilly at gmail.com> >>
 =head1 ACKNOWLEDGEMENTS
 
 Thanks to L<Rent.com|http://www.rent.com> for their generous support in
-letting me develop and release this module.
+letting me develop and release this module.  My thanks also to Keith Cascio
+C<< <cascio@helminthist.net> >> for helpful feedback on early drafts.
