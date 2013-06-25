@@ -4,6 +4,12 @@ use 5.006;
 use strict;
 use warnings FATAL => 'all';
 
+our @CARP_NOT = qw(LWP::Authen::OAuth2::Args);
+
+use LWP::Authen::OAuth2::Args qw(copy_option assert_args_done);
+
+
+
 =head1 NAME
 
 LWP::Authen::OAuth2::ServiceProvider - Understand OAuth2 Service Providers

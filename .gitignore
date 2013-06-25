@@ -16,3 +16,4 @@ pod2htm*.tmp
 pm_to_blib
 LWP-Authen-OAuth2-*
 LWP-Authen-OAuth2-*.tar.gz
+*.swp
