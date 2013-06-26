@@ -140,11 +140,18 @@ L<LWP::Authen::OAuth2> helps you build that URL.  The rest is up to you.
 =item Build interaction receiving your I<authorization code>
 
 When the I<user> finishes their interaction with the I<service provider>,
-they are sent to the I<redirect_uri> to pass a one use I<code> back to you.
-You need to be able to receive that information.  What is required depends
-on your I<flow>, but it is likely that the user will be sent to a URL that you
-control with a get parameter named C<code>.  You need to be able to retrieve
-the one use I<code> from there.
+if the I<service provider> is sure that they know where to send the user
+(they know your I<client_id>, your I<redirect_uri> makes sense to them) then
+they will be sent to the I<redirect_uri> to pass information back to you.
+
+If you succeeded, you will receieve a I<code> in some way.  For instance if
+your I<redirect_uri> is a URL, it will have a get parameter named C<code>.
+
+You could get an C<error> parameter back instead.  See
+L<http://tools.ietf.org/html/draft-ietf-oauth-v2-31#section-4.1.2.1|a draft>
+for a list of the possible errors.  The draft indicates that optional fields
+could be included with extra detail.  I would not advise optimism on that
+point.
 
 L<LWP::Authen::OAuth2> is not involved with this.
 
@@ -152,12 +159,14 @@ L<LWP::Authen::OAuth2> is not involved with this.
 
 Once you have that I<code> you are supposed to immediately trade it in
 for tokens.  L<LWP::Authen::OAuth2> provides the C<request_tokens>
-method to do this for you.
+method to do this for you.  Should you not actually get tokens, then the
+C<request_tokens> method will trigger an error.
 
 B<NOTE> that the I<code> cannot be expected to work more than once.  Nor can
-you expect the I<service provider> to repeatedly hand out tokens for the same
-permission.  Being told this will hopefully let you avoid a painful debugging
-session that I did not enjoy.
+you expect the I<service provider> to repeatedly hand out working I<code>s
+for the same permission.  (The qualifier "working" matters.)  Being told this
+will hopefully let you avoid a painful debugging session that I did not
+enjoy.
 
 =item Save and pass around tokens (maybe)
 
@@ -391,10 +400,11 @@ in order to let the I<service provider> know what authorization is being
 requested.
 
 It is constructed as the I<Authorization Endpoint> with get parameters added
-for the I<response_type> and I<client_id>.  The I<redirect_uri>, I<state>
-and I<scope> may or may not be present or required by the
-I<service provider>.  Also the I<service provider> can add on any other
-required or optional arguments that they wish for your I<flow>.
+for the I<response_type>, I<client_id>, and optionally I<state>.  The
+specification mentions both I<redirect_uri> and I<scope> but does not
+actually mandate that they be accepted.  However they often are.  And,
+of course, a given service provider can add more parameters at will, and
+require (or not) different things by flow.
 
 An example URL for Google complete with optional extensions is
 L<https://accounts.google.com/o/oauth2/auth?scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile&state=%2Fprofile&redirect_uri=https%3A%2F%2Foauth2-login-demo.appspot.com%2Fcode&response_type=code&client_id=812741506391.apps.googleusercontent.com&approval_prompt=force>
@@ -407,13 +417,12 @@ and object.
 
 =item (authorization) code
 
-If the I<response_type> is set to C<code> (which should be the case), the
-I<service provider> will generate a one use I<authorization code> to give to
-the user to take back to the I<consumer>.  Depending on the I<flow> this
-could happen with no effort on the part of the I<user>.  For example the
-I<user> can be redirected to the I<redirect_uri> with the I<code> (and
-optionally the I<state>) passed as get parameters.  The web server would then
-pick these up, finish the handshake, and then redirect the user elsewhere.
+If the I<response_type> is set to C<code> (which should be the case), then on
+success the I<service provider> will generate a one use I<authorization code>
+to give to the user to take back to the I<consumer>.  Depending on the
+I<flow> this could happen with no effort on the part of the I<user>.  For
+example the I<user> can be redirected to the I<redirect_uri> with the I<code>
+passed as a get parameter.  The web server would then pick these up, finish the handshake, and then redirect the user elsewhere.
 
 In all interactions where it is passed it is simply called the I<code>.  But
 it is described in one interaction as an I<authorization_code>.
@@ -471,12 +480,22 @@ and the response if you're lucky will look something like:
       "request_token":"1/xEoDL4iW3cxlI7yDbSRFYNG01kVKM2C-259HOF2aQbI"
     }
 
-Note that success is up to the I<service provider> which can decide not to
-give you tokens for any reason that they want, including that you asked
-twice, they think the I<user> might be compromised, they don't like the
-I<client>, or the phase of the Moon.  (I am not aware of any
-I<service provider> that makes failure depend on the phase of the Moon, but
-the others are real examples.)
+or if you're unlucky, maybe like this:
+
+    HTTP/1.1 200 OK
+    Content-Type: application/json;charset=UTF-8
+    Cache-Control: no-store
+    Pragma: no-cache
+    
+    {
+      "error":"invalid_grant"
+    }
+
+Success is up to the I<service provider> which can decide not to give you
+tokens for any reason that they want, including that you asked twice, they
+think the I<user> might be compromised, they don't like the I<client>, or the
+phase of the Moon.  (I am not aware of any I<service provider> that makes
+failure depend on the phase of the Moon, but the others are real examples.)
 
 The C<request_tokens> method of L<LWP::Authen::OAuth2> will make this
 request for you, read the JSON and create the tokens.  It is up to you to
