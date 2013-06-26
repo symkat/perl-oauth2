@@ -3,12 +3,208 @@ package LWP::Authen::OAuth2::ServiceProvider;
 use 5.006;
 use strict;
 use warnings FATAL => 'all';
+use Carp qw(croak);
+use Memoize qw(memoize);
+use Module::Load qw(load);
 
 our @CARP_NOT = qw(LWP::Authen::OAuth2::Args);
 
-use LWP::Authen::OAuth2::Args qw(copy_option assert_args_done);
+use LWP::Authen::OAuth2::Args qw(copy_option assert_options_empty);
 
+# Construct a new object.
+sub new {
+    my $class = shift;
+    my $opt = {@_};
 
+    # I start as an empty hashref.
+    my $self = {};
+
+    # But what class am I supposed to actually be?
+    if (not exists $opt->{service_provider}) {
+        bless $self, $class;
+    }
+    else {
+        # Convert "Google" to "LWP::Authen::OAuth2::ServiceProvider::Google"
+        $class = service_provider_class(delete $opt->{service_provider});
+        my $flow = delete $opt->{flow};
+        if (not defined($flow)) {
+            $flow = "default";
+        }
+        bless $self, $class->flow_class($flow);
+    }
+
+    # Now let us consume options.  2 args = required, 3 = defaulted.
+
+    # These are required, NOT provided by this class, but are by subclasses.
+    for my $field (qw(token_endpoint authorization_endpoint)) {
+        if ($self->can($field)) {
+            $self->copy_option($opt, $field, $self->$field);
+        }
+        else {
+            $self->copy_option($opt, $field);
+        }
+    }
+
+    # These are defaulted by this class, maybe overridden by subclasses.
+    for my $action (qw(authorization request refresh)) {
+        my $field = "$action\_required_params";
+        $self->copy_option($opt, $field, [$self->$field]);
+
+        $field = "$action\_more_params";
+        $self->copy_option($opt, $field, [$self->$field]);
+
+        $field = "$action\_default_params";
+        $self->copy_option($opt, $field, {$self->$field});
+    }
+
+    $self->assert_options_empty($opt);
+    return $self;
+}
+
+sub collect_action_params {
+    my $self = shift;
+    my $action = shift;
+    my $oauth2 = shift;
+    my $opt = {@_};
+
+    my $default = $self->{"$action\_default_params"};
+
+    if ($oauth2->is_strict) {
+        # We copy one by one with testing.
+        my $result = {};
+        for my $param (@{ $self->{"$action\_required_params"}}) {
+             if (exists $opt->{$param}) {
+                 if (defined $opt->{$param}) {
+                     $result->{$param} = delete $opt->{$param};
+                 }
+                 else {
+                     croak("Cannot pass undef for required param '$param'");
+                 }
+             }
+             elsif (defined $oauth2->{$param}) {
+                 $result->{$param} = $oauth2->{$param};
+             }
+             elsif (defined $default->{$param}) {
+                 $result->{$param} = $default->{$param};
+             }
+             else {
+                 croak("Missing required param '$param'");
+             }
+        }
+
+        for my $param (@{ $self->{"$action\_more_params"} }) {
+            for my $source ($result, $opt, $oauth2, $default) {
+                if (exists $source->{$param}) {
+                    # Only add it if it is not undef.  Else hide.
+                    if (defined $source->{$param}) {
+                        $result->{$param} = $source->{$param};
+                    }
+
+                    # For opt only, delete if it was found.
+                    if ($opt == $source) {
+                        delete $opt->{$param};
+                    }
+
+                    last; # source
+                    # (undef is deliberate override, which is OK)
+                }
+            }
+        }
+
+        $self->assert_options_empty($opt);
+
+        # End of strict section.
+        return $result;
+    }
+    else {
+        # Not strict  just bulk copy.
+        my $result = {
+            %$default,
+            (
+                map $oauth2->{$_},
+                    @{ $self->{"$action\_required_params"} },
+                    @{ $self->{"$action\_more_params"} }
+            ),
+            %$opt
+        };
+        for my $key (keys %$result) {
+            if (not defined($result->{$key})) {
+                delete $result->{$key};
+            }
+        }
+        return $result;
+    }
+}
+
+# Override for your flows if you have multiple.
+sub flow_class {
+    my ($class, $name) = @_;
+    if ("default" eq $name) {
+        return $class;
+    }
+    else {
+        croak("Flow '$name' not defined for '$class'");
+    }
+}
+
+memoize("service_provider_class");
+sub service_provider_class {
+    my $short_name = shift;
+    eval {
+        load("LWP::Authen::OAuth2::ServiceProvider::$short_name");
+    };
+    if ($@) {
+        eval {
+            load($short_name);
+        };
+        if ($@) {
+            croak("Service provider '$short_name' not found");
+        }
+        else {
+            return $short_name;
+        }
+    }
+    else {
+        return "LWP::Authen::OAuth2::ServiceProvider::$short_name";
+    }
+}
+
+# DEFAULTS (should be overridden)
+sub authorization_required_params {
+    return qw(response_type client_id);
+}
+
+sub authorization_more_params {
+    return qw(redirect_uri state scope);
+}
+
+sub authorization_default_params {
+    return qw(response_type code);
+}
+
+sub request_required_params {
+    return qw(grant_type client_id client_secret code);
+}
+
+sub request_more_params {
+    return qw(state);
+}
+
+sub request_default_params {
+    return qw(grant_type authorization_code);
+}
+
+sub refresh_required_params {
+    return qw(grant_type refresh_token client_id client_secret code);
+}
+
+sub refresh_more_params {
+    return ();
+}
+
+sub refresh_default_params {
+    return qw(grant_type refresh_token);
+}
 
 =head1 NAME
 
@@ -52,7 +248,7 @@ parameters to create a custom one on the fly:
         authorization_endpoint => $authorization_endpoint,
         token_endpoint => $token_endpoint,
 
-        # These are optional but advised if you're using strict mode
+        # These are optional but let you get the typo checks of strict mode
         authorization_required_params => [...],
         authorization_more_params => [...],
         ...
@@ -84,15 +280,17 @@ harm in parameters being duplicated between these lists should your service
 provider require a parameter that is optional in the specification.
 
 Many service providers accept different parameters for different flows.  To
-accommodate that, a more complete subclass should override
-C<flow_class_by_name> to specify which class to use for each flow name.
-The name "default" should be sent to whatever flow most closely resembles
+accommodate that, a more complete subclass should have a subsubclass for each
+flow, and then override C<flow_class> to map the flow argument to the
+appropriate child class for that flow.  The flow C<default> should be
+supported and be sent to whatever flow most closely resembles
 I<webserver application> as that is the most likely flow for a Perl client to
 use.
 
 To accommodate the fact that so much of the specification can be specific to
 the service provider, most calls to C<LWP::Authen::OAuth2> are delegated to
 the service provider, and you are free to override any that you need to.
+Though hopefully you won't need to.
 
 =head1 CONTRIBUTING
 
