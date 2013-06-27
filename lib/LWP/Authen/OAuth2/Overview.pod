@@ -225,6 +225,14 @@ reasonably detailed explanation of the OAuth 2 protocol, with all terms
 explained.  In fact if you choose this option, you will find it explained in
 more detail than you need to be a successful I<consumer>.
 
+However if you use it in the second way, please be advised that this does
+not try to be a complete and exact explanation of the specification.  In
+particular the specification requires specific error handling from the
+service provider that I have glossed over, and allows for extra types of
+requests that I also glossed over.  (Particularly the bit about how any
+I<service provider> at any time can add any new method that they want so
+long as they invent a new I<grant_type> for it.)
+
 =over 4
 
 =item consumer
@@ -442,8 +450,13 @@ with any I<consumer> written in Perl), the I<grant_type> has to be
 C<authorization_code>.  If they were being consistent, then that would be
 I<code> like it is everywhere else, but that's what the spec says.
 
-We will later encounter the I<grant_type> C<refresh_token>.  This fact
-makes it more useful than I<response_type> was.
+We will later encounter the I<grant_type> C<refresh_token>.  The
+specification includes more that might prove useful depending on your I<flow>
+and I<service provider>.  However programmers using L<LWP::Authen::OAuth2>
+are only likely to directly encounter them when subclassing
+L<LWP::Authen::OAuth2::ServiceProvider>, and hopefully will discover the
+applicability of those I<grant_type>s from the I<service provider>'s
+documentation.
 
 =item Access Token Request
 

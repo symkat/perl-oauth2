@@ -6,6 +6,7 @@ use warnings FATAL => 'all';
 use Carp qw(croak);
 use Memoize qw(memoize);
 use Module::Load qw(load);
+use URI;
 
 our @CARP_NOT = qw(LWP::Authen::OAuth2::Args);
 
@@ -59,6 +60,22 @@ sub new {
 
     $self->assert_options_empty($opt);
     return $self;
+}
+
+sub authorization_url {
+    my ($self, $oauth2, @rest);
+    my $param
+        = $self->collect_action_params("authorization", $oauth2, @rest);
+    my $uri = URI->new($self->{"authorization_endpoint"});
+    $uri->query_form(%$param);
+    return $uri->as_string;
+}
+
+sub request_tokens {
+    my ($self, $oauth2, @rest);
+    my $param = $self->collect_action_params("request", $oauth2, @rest);
+    my $ua = $oauth2->user_agent;
+    
 }
 
 sub collect_action_params {
@@ -260,8 +277,8 @@ provider's documentation.
 
 =head1 KNOWN SERVICE PROVIDERS
 
-The following service providers are provided in this distribution, hopefully
-with useful defaults:
+The following service providers are provided in this distribution, with
+hopefully useful configuration and documentation:
 
 =over 4
 
@@ -271,35 +288,103 @@ with useful defaults:
 
 =head1 SUBCLASSING
 
-A minimal subclass for a given service provider should override the methods
-C<authorization_endpoint> and C<token_endpoint>.  For the benefit of people
-who choose to get the error checks of strict mode, please override
-C<authorization_required_params> and C<authorization_more_params> as well if
-the service provider requires or allows more than the default.  There is no
-harm in parameters being duplicated between these lists should your service
-provider require a parameter that is optional in the specification.
-
-Many service providers accept different parameters for different flows.  To
-accommodate that, a more complete subclass should have a subsubclass for each
-flow, and then override C<flow_class> to map the flow argument to the
-appropriate child class for that flow.  The flow C<default> should be
-supported and be sent to whatever flow most closely resembles
-I<webserver application> as that is the most likely flow for a Perl client to
-use.
-
-To accommodate the fact that so much of the specification can be specific to
-the service provider, most calls to C<LWP::Authen::OAuth2> are delegated to
-the service provider, and you are free to override any that you need to.
-Though hopefully you won't need to.
-
-=head1 CONTRIBUTING
-
-Patches contributing service provider subclasses to this distributions are
-encouraged.  Please make sure that you have done the following.
+Support for new service providers can be added with subclasses.  Here are
+the methods that you are most ikely to want to override in a subclass.
 
 =over 4
 
-=item * Implement it reasonably completely
+=item C<authorization_endpoint>
+
+Returns the URL for the Authorization Endpoint for the service provider.
+Your subclass cannot function without this.
+
+=item C<token_endpoint>
+
+Returns the URL for the Token Endpoint for the service provider.  Your
+subclass cannot function without this.
+
+=item C<flow_class>
+
+Given the name of a flow, returns the class for that flow and service
+provider.  Not required, but useful for service providers with many flows
+and different arguments.
+
+If you provide this, it is your responsibility to make sure that those
+classes will be available.
+
+You also should map the flow C<default> to the most likely default flow that
+people will want to use.  This likely is whatever most closely resembles
+"webserver application".  That way people will be able to use your module
+without specifying a flow.
+
+=item C<{authorization,request,refresh}_required_params>
+
+These three methods list parameters that B<must> be included in the
+authorization url, the post to request tokens, and the post to refresh
+tokens respectively.  Supplying these can give better error messages if
+they are left out.
+
+=item C<{authorization,request,refresh}_more_params>
+
+These three methods list parameters that B<can> be included in the
+authorization url, the post to request tokens, and the post to refresh
+tokens respectively.  In strict mode, supplying any parameters not
+included in more or required params will be an error.  Otherwise this has
+little effect.
+
+=item C<{authorization,request,refresh}_default_params>
+
+These three methods returns a list of key/value pairs mapping parameters to
+B<default> values in the authorization url, the post to request tokens, and
+the post to refresh tokens respectively.  Supplying these can stop people
+from having to supply the parameters themselves.
+
+An example where this could be useful is to support a flow that uses
+different types of requests than normal.  For example there are possible
+requests in the specification with C<grant_type=password> and
+C<grant_type=client_credentials> that could be substituted for
+C<request_tokens> with a flow and service provider that supports them.
+
+=item C<post_to_token_endpoint>
+
+When a post to a token endpoint is constructed, this actually sends the
+request.  The specification allows service providers to require
+authentication beyond what the specification requires, which may require
+cookies, specific headers, etc.  This method will handle that case.
+
+=item C<construct_tokens>
+
+Given the JSON response, construct tokens.  If your provider creates a new
+token type, or implements an existing token type in an incompatible way,
+overriding this method will let you add support for that quirk.
+
+=item C<collect_action_tokens>
+
+This shouldn't be overridden.  But knowing about it could plausibly be useful
+if you needed to add a new request type.
+
+This is an unlikely, but not impossible, need.  For example you might want to
+support a service provider and flow which bizarrely allows an access_token to
+be refreshed either through a Refresh Token request or an Extension Grant
+request.  You could then create a new request type, then override
+C<refresh_access_token> with code that figures out the correct request to
+send before sending it.
+
+I am not personally aware of any service providers who have provided a flow
+along which both kinds of requests would be plausible.  Should you encounter
+one, feel free to amuse me by fixing that.
+
+=back
+
+=head1 CONTRIBUTING
+
+Patches contributing new service provider subclasses to this distributions
+are encouraged.  Should you wish to do so, please submit a git pull request
+that does the following:
+
+=over 4
+
+=item * Implement your provider
 
 The more completely implemented, the better.
 
@@ -324,7 +409,7 @@ that all works.  See the existing unit tests for examples.
 
 Your files need to be included in the C<MANIFEST> in the root directory.
 
-=item * Document registration
+=item * Document Client Registration
 
 A developer should be able to read your module and know how to register
 themselves as a client of the service provider.
@@ -332,16 +417,17 @@ themselves as a client of the service provider.
 =item * List Useful Flows
 
 Please list the flows that the service provider uses, with just enough
-detail that a developer can figure out which one to use.
+detail that a developer can figure out which one to use.  Listed flows
+should, of course, also be implemented.
 
 =item * Document important quirks
 
 If the service provider requires or allows useful parameters, try to mention
-them.
+them in your documentation.
 
 =item * Document limitations
 
-If there are limitations in your implementation, please state them.
+If there are known limitations in your implementation, please state them.
 
 =item * Link to official documentation
 
