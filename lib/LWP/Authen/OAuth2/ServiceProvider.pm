@@ -289,7 +289,8 @@ hopefully useful configuration and documentation:
 =head1 SUBCLASSING
 
 Support for new service providers can be added with subclasses.  Here are
-the methods that you are most ikely to want to override in a subclass.
+the methods that you are most ikely to want to override or be aware of in a
+subclass.
 
 =over 4
 

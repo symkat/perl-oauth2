@@ -392,14 +392,14 @@ the I<user>'s account.  This is part of the I<Authorization Server>.
 =item response_type
 
 The I<response_type> tells the I<service provider> what kind of information
-it is supposed to pass back.  This usually has to be C<code>.  However some
-I<service provider>s in some I<flow>s will allow other values.  For example
+it is supposed to pass back.  I am not aware of a case where a Perl I<client>
+could usefully use any value other than C<code>.  However there are flows
+which I<service provider>s can support which do other things.  For example
 the I<user-agent-based application> I<flow> will use a I<response_type> of
 I<token>.
 
-In most cases this field seems redundant.  But it is in the specification,
-and is actually required by I<service provider>s, so there is no point in
-wishing it was different.
+While the field is not very useful for Perl I<client>s, it is required in the
+specification.  So you have to pass it.
 
 =item authorization_url
 
@@ -464,8 +464,8 @@ Once the I<consumer> has a I<code> the consumer can submit an
 I<Access Token Request> by sending a POST request to the
 I<Token Endpoint> with the I<grant_type>, I<code>, I<client_id>,
 I<client_secret>, I<redirect_uri> and (if in the authorization code)
-the I<state>.  Your I<service provider> may also want you to authenticate
-in some other way.  You will get back a JSON response.
+the I<state>.  Your I<service provider> can also require you to authenticate
+in any further way that they please.  You will get back a JSON response.
 
 An example request might look like this:
 
@@ -508,7 +508,7 @@ Success is up to the I<service provider> which can decide not to give you
 tokens for any reason that they want, including that you asked twice, they
 think the I<user> might be compromised, they don't like the I<client>, or the
 phase of the Moon.  (I am not aware of any I<service provider> that makes
-failure depend on the phase of the Moon, but the others are real examples.)
+failure depend on the phase of the Moon, but the others are not made up.)
 
 The C<request_tokens> method of L<LWP::Authen::OAuth2> will make this
 request for you, read the JSON and create the tokens.  It is up to you to
@@ -595,4 +595,4 @@ Ben Tilly, C<< <btilly at gmail.com> >>
 
 Thanks to L<Rent.com|http://www.rent.com> for their generous support in
 letting me develop and release this module.  My thanks also to Keith Cascio
-C<< <cascio@helminthist.net> >> for helpful feedback on early drafts.
+C<< <cascio@helminthist.net> >> for very helpful feedback on early drafts.
