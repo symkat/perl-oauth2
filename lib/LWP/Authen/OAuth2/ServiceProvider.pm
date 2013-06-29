@@ -4,6 +4,7 @@ use 5.006;
 use strict;
 use warnings FATAL => 'all';
 use Carp qw(croak);
+use JSON qw(from_json);
 use Memoize qw(memoize);
 use Module::Load qw(load);
 use URI;
@@ -74,14 +75,22 @@ sub authorization_url {
 sub request_tokens {
     my ($self, $oauth2, @rest);
     my $param = $self->collect_action_params("request", $oauth2, @rest);
-    my $ua = $oauth2->user_agent;
-    
+    my $response = $self->post_to_token_endpoint($oauth2, $param);
+    return $self->construct_tokens($oauth2, $response);
+}
+
+sub refresh_access_token {
+    my ($self, $oauth2, @rest);
+    my $param = $self->collect_action_params("refresh", $oauth2, @rest);
+    my $response = $self->post_to_token_endpoint($oauth2, $param);
+    return $self->construct_tokens($oauth2, $response);
 }
 
 sub collect_action_params {
     my $self = shift;
     my $action = shift;
     my $oauth2 = shift;
+    my @rest = @_;
     my $opt = {@_};
 
     my $default = $self->{"$action\_default_params"};
@@ -153,6 +162,106 @@ sub collect_action_params {
     }
 }
 
+sub post_to_token_endpoint {
+    my ($self, $oauth2, $param) = @_;
+    my $ua = $oauth2->user_agent();
+    return $ua->post($self->token_endpoint(), [%$param]);
+}
+
+sub access_token_type {
+    my ($self, $type) = @_;
+
+    if ("Bearer" eq $type) {
+        return "LWP::Authen::OAuth2::AccessToken::Bearer";
+    }
+    else {
+        return "Token type '$type' not yet implemented";
+    }
+}
+
+sub construct_tokens {
+    my ($self, $oauth2, $response) = @_;
+
+    # The information that I need.
+    my $content = eval {$response->decoded_content};
+    if (not defined($content)) {
+        $content = '';
+    }
+    my $data = eval {decode_json($content)};
+    my $parse_error = $@;
+    my $token_endpoint = $self->token_endpoint;
+
+    # Can this have done wrong?  Let me list the ways...
+    if ($parse_error) {
+        # "Should not happen", hopefully just network.
+        # Tell the programmer everything.
+        my $status = $response->status_line;
+        return $oauth2->error(<<"EOT");
+Token endpoint gave invalid JSON in response.
+
+Endpoint: $token_endpoint
+Status: $status
+Parse error: $parse_error
+JSON:
+$content
+EOT
+    }
+    elsif ($data->{error}) {
+        # Assume a valid OAuth 2 error message.
+        my $message = "OAuth2 error: $data->{error}";
+
+        # Do we have a mythical service provider that gives us more?
+        if ($data->{error_uri}) {
+            # They seem to have a web page with detail.
+            $message .= "\n$data->{error_uri} may say more.\n";
+        }
+
+        if ($data->{error_description}) {
+            # Wow!  Thank you!
+            $message .= "\n\nDescription: $data->{error_description}\n";
+        }
+        return $oauth2->error($message);
+    }
+    elsif (not $response->{token_type}) {
+        # Someone failed to follow the spec...
+        return $oauth2->error(<<"EOT");
+Token endpoint missing expected token_type in successful response.
+
+Endpoint: $token_endpoint
+JSON:
+$content
+EOT
+    }
+
+    my $type = $self->access_token_type($data->{token_type});
+    if ($type !~ /^[\w\:]+\z/) {
+        # We got an error. :-(
+        return $oauth2->error($type);
+    }
+
+    eval {load($type)};
+    if ($@) {
+        # MAKE THIS FATAL.  (Clearly Perl code is simply wrong.)
+        confess("Loading $type for $data->{token_type} gave error: $@");
+    }
+
+    # Try to make an access token.
+    my $access_token = $type->from_ref($data);
+
+    if (not ref($access_token)) {
+        # This should be an error message of some sort.
+        return $oauth2->error($access_token);
+    }
+    else {
+        # WE SURVIVED!  EVERYTHING IS GOOD!
+        $oauth2->update_tokens(
+            access_token => $access_token,
+            response_token => $data->{response_token},
+        );
+        return;
+    }
+}
+
 # Override for your flows if you have multiple.
 sub flow_class {
     my ($class, $name) = @_;
@@ -162,6 +271,14 @@ sub flow_class {
     else {
         croak("Flow '$name' not defined for '$class'");
     }
+}
+
+# Override should you need the front-end LWP::Authen::OAuth object to have
+# methods for service provider specific functionality.
+#
+# This is not expected to be a common need.
+sub flow_oauth2_class {
+    return "LWP::Authen::OAuth2";
 }
 
 memoize("service_provider_class");
@@ -216,7 +333,7 @@ sub refresh_required_params {
 }
 
 sub refresh_more_params {
-    return ();
+    return qw(scope);
 }
 
 sub refresh_default_params {
@@ -288,9 +405,25 @@ hopefully useful configuration and documentation:
 
 =head1 SUBCLASSING
 
-Support for new service providers can be added with subclasses.  Here are
-the methods that you are most ikely to want to override or be aware of in a
-subclass.
+Support for new service providers can be added with subclasses.  To do that
+it is useful to understand how things get delegated under the hood.
+
+First L<LWP::Authen::OAuth2> asks L<LWP::Authen::OAuth2::ServiceProvider> to
+construct a service provider.  Based on the C<service_provider> argument, it
+figures out that it needs to load and use your base class.  A service
+provider will generally support multiple flows with different behaviors.  You
+are free to take the flow and dynamically decide which subclass of yours will
+be loaded instead.  Should your subclass need to, it can decide that that a
+subclass of L<LWP::Authen::OAuth2> should be used that actually knows about
+request types that are specific to your service provider.  This should be
+seldom needed, but things can vary sufficiently that the hook is provided
+"just in case".
+
+For all of the potential complexity that is supported, B<most> service
+provider subclasses should be simple.  Just state what fields differ from the
+specification for specific requests and flows, then include documentation.
+However should you be supporting a truly crazy service provider, that should
+be possible.
 
 =over 4
 
@@ -351,29 +484,37 @@ C<request_tokens> with a flow and service provider that supports them.
 When a post to a token endpoint is constructed, this actually sends the
 request.  The specification allows service providers to require
 authentication beyond what the specification requires, which may require
-cookies, specific headers, etc.  This method will handle that case.
+cookies, specific headers, etc.  This method allows you to address that case.
 
-=item C<construct_tokens>
+=item C<access_token_class>
 
-Given the JSON response, construct tokens.  If your provider creates a new
-token type, or implements an existing token type in an incompatible way,
-overriding this method will let you add support for that quirk.
+Given a C<token_type>, what class implements access tokens of that type?  If
+your provider creates a new token type, or implements an existing token type
+in a quirky way that requires a nonstandard model to handle, this method can
+let you add support for that.
+
+If the return value does not look like a package name, it is assumed to be
+an error message.  So please put spaces in error messages, and not in your
+class name.
+
+See L<LWP::Authen::OAuth2::AccessToken> for a description of the interface
+that your access token class needs to meet.  (You do not have to subclass
+that - just duck typing here.)
+
+=item C<flow_oauth_class>
+
+Override this if you need people using your service provider class to have
+methods exposed that are not available through L<LWP::Authen::OAuth2>.
+Few service provider classes should find a reason to do this, but it is at
+least possible.
 
 =item C<collect_action_tokens>
 
-This shouldn't be overridden.  But knowing about it could plausibly be useful
-if you needed to add a new request type.
+Should your service provider support request types that do not fit into the
+usual model, this function can probably be used to construct those requests.
 
-This is an unlikely, but not impossible, need.  For example you might want to
-support a service provider and flow which bizarrely allows an access_token to
-be refreshed either through a Refresh Token request or an Extension Grant
-request.  You could then create a new request type, then override
-C<refresh_access_token> with code that figures out the correct request to
-send before sending it.
-
-I am not personally aware of any service providers who have provided a flow
-along which both kinds of requests would be plausible.  Should you encounter
-one, feel free to amuse me by fixing that.
+See the implementation of C<request_tokens> in this module for an example of
+how to use it.
 
 =back
 
