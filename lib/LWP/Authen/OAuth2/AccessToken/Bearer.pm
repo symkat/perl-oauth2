@@ -1,17 +1,42 @@
-package LWP::Authen::OAuth2::AccessToken;
+package LWP::Authen::OAuth2::AccessToken::Bearer;
 use strict;
 use warnings;
+use base "LWP::Authen::OAuth2::AccessToken";
+use Storable qw(dclone);
 
-use Carp qw(confess);
-our @CARP_NOT = qw(LWP::Authen::OAuth2::AccessToken);
+sub _request {
+    my ($self, $oauth2, $request, @rest) = @_;
+    my $actual_request = dclone($request);
+    $actual_request->header('Authorization' => "Bearer $self->{access_token}");
+    return $oauth2->lwp->request($actual_request, @rest);
+}
+
+sub request {
+    my ($self, $oauth2, $request, @rest) = @_;
+    my $response = $self->_request(@_);
+    my $authenticate_header = $response->header("WWW-Authenticate");
+    if (
+        $authenticate_header =~ /\binvalid_token\b/ and
+        $self->{refresh_token}
+    ) {
+        # According to the spec, the expected 401 $response->code is not
+        # required, even though it SHOULD be present.  So don't check for it.
+        my $oauth2 = $_[0];
+        if ($oauth2->refresh_access_token) {
+            # Try again!
+            $response = $oauth2->access_token->_request(@_);
+        }
+    }
+    return $response;
+}
 
 =head1 NAME
 
-LWP::Authen::OAuth2::AccessToken - Access tokens for OAuth 2.
+LWP::Authen::OAuth2::AccessToken::Bearer - Bearer access tokens for OAuth 2.
 
-=head VERSION
+=head1 VERSION
 
-Version 0.01;
+Version 0.01
 
 =cut
 
@@ -19,82 +44,12 @@ our $VERSION = '0.01';
 
 =head1 SYNOPSIS
 
-This is a base class for signing API requests with OAuth2 access tokens.  A
-subclass should override the C<request> method with something that knows how
-to make a request, detect the need to try to refresh, and attmpts to do that.
-See L<lWP::Authen::OAuth2::AccessToken::Bearer> for an example.
+This implements bearer tokens.  See
+L<http://tools.ietf.org/html/rfc6750|RFC 6750> for details,
+L<LWP::Authen::OAuth2::AccessToken> for how this module works, and
+L<LWP::Authen::OAuth2> for the interface to use to this module.
 
-Subclasses of this one are not directly useful.  Please see
-L<LWP::Authen::OAuth2> for the interface that you should be using.
-
-=head1 METHODS
-
-=head2 C<from_ref>
-
-Construct an access token from a hash reference.  The default implementation
-merely blesses it as an object, defaulting the C<create_time> field to the
-current time.
-
-    my $access_token = $class->from_ref($data);
-
-=cut
-
-sub from_ref {
-    my ($class, $data) = @_;
-    # If create_time is passed, then that will overwrite this default.
-    return bless {create_time => time(), %$data}, $class;
-}
-
-=head2 C<to_ref>
-
-Construct an unblessed data structure to represent the object that can be
-serialized as JSON.  The default implementation just creates a shallow copy.
-
-=cut
-
-sub to_ref {
-    my $self = shift;
-    return { %$self };
-}
-
-=head2 C<expires_in>
-
-Estimate the seconds until expiration.  Not always correct, due to transit
-delays, clock skew, etc.
-
-=cut
-
-sub expires_in {
-    my $self = shift;
-    my $initial_expires_in = $self->{expires_in} || 3600;
-    return $self->{create_time} + $initial_expires_in - time();
-}
-
-=head2 C<request>
-
-Make a request.  If expiration is detected, refreshing by the best
-available method (if any).
-
-    my $response = $access_token->request($oauth2, @request_for_lwp);
-
-=cut
-
-sub request {
-    confess("Method request needs to be overwritten.");
-}
-
-
-=head2 C<_request>
-
-Make a request with no retry logic.
-
-    my $response = $access_token->_request($oauth2, @request_for_lwp);
-
-=cut
-
-sub _request {
-    confess("Method _request needs to be overwritten.");
-}
+Whether this module gets used depends on the service provider.
 
 =head1 AUTHOR
 

@@ -48,7 +48,7 @@ sub new {
     }
 
     # These are defaulted by this class, maybe overridden by subclasses.
-    for my $action (qw(authorization request refresh)) {
+    for my $action (qw(authorization request replace)) {
         my $field = "$action\_required_params";
         $self->copy_option($opt, $field, [$self->$field]);
 
@@ -79,11 +79,20 @@ sub request_tokens {
     return $self->construct_tokens($oauth2, $response);
 }
 
-sub refresh_access_token {
+sub replacement_tokens {
     my ($self, $oauth2, @rest);
-    my $param = $self->collect_action_params("refresh", $oauth2, @rest);
+    my $param = $self->collect_action_params("replace", $oauth2, @rest);
     my $response = $self->post_to_token_endpoint($oauth2, $param);
-    return $self->construct_tokens($oauth2, $response);
+    my $tokens = $self->construct_tokens($oauth2, $response);
+    if (ref($tokens)) {
+        if ($self->{refresh_token}) {
+            $tokens->{refresh_token} ||= $self->{refresh_token};
+        }
+        return $tokens;
+    }
+    else {
+        return $tokens;
+    }
 }
 
 sub collect_action_params {
@@ -179,6 +188,8 @@ sub access_token_class {
     }
 }
 
+# Attempts to construct tokens, returns the access_token (which may have a
+# request token embedded).
 sub construct_tokens {
     my ($self, $oauth2, $response) = @_;
 
@@ -196,7 +207,7 @@ sub construct_tokens {
         # "Should not happen", hopefully just network.
         # Tell the programmer everything.
         my $status = $response->status_line;
-        return $oauth2->error(<<"EOT");
+        return <<"EOT"
 Token endpoint gave invalid JSON in response.
 
 Endpoint: $token_endpoint
@@ -220,11 +231,11 @@ EOT
             # Wow!  Thank you!
             $message .= "\n\nDescription: $data->{error_description}\n";
         }
-        return $oauth2->error($message);
+        return $message;
     }
     elsif (not $response->{token_type}) {
         # Someone failed to follow the spec...
-        return $oauth2->error(<<"EOT");
+        return <<"EOT";
 Token endpoint missing expected token_type in successful response.
 
 Endpoint: $token_endpoint
@@ -236,7 +247,7 @@ EOT
     my $type = $self->access_token_class(lc($data->{token_type}));
     if ($type !~ /^[\w\:]+\z/) {
         # We got an error. :-(
-        return $oauth2->error($type);
+        return $type;
     }
 
     eval {load($type)};
@@ -250,15 +261,11 @@ EOT
 
     if (not ref($access_token)) {
         # This should be an error message of some sort.
-        return $oauth2->error($access_token);
+        return $access_token;
     }
     else {
         # WE SURVIVED!  EVERYTHING IS GOOD!
-        $oauth2->update_tokens(
-            access_token => $access_token,
-            response_token => $data->{response_token},
-        );
-        return;
+        return $access_token;
     }
 }
 
@@ -328,15 +335,15 @@ sub request_default_params {
     return qw(grant_type authorization_code);
 }
 
-sub refresh_required_params {
-    return qw(grant_type refresh_token client_id client_secret code);
+sub replace_required_params {
+        return qw(grant_type refresh_token client_id client_secret code);
 }
 
-sub refresh_more_params {
-    return qw(scope);
+sub replace_more_params {
+        return qw(scope);
 }
 
-sub refresh_default_params {
+sub replace_default_params {
     return qw(grant_type refresh_token);
 }
 
@@ -451,27 +458,27 @@ people will want to use.  This likely is whatever most closely resembles
 "webserver application".  That way people will be able to use your module
 without specifying a flow.
 
-=item C<{authorization,request,refresh}_required_params>
+=item C<{authorization,request,replace}_required_params>
 
 These three methods list parameters that B<must> be included in the
-authorization url, the post to request tokens, and the post to refresh
+authorization url, the post to request tokens, and the post to replace
 tokens respectively.  Supplying these can give better error messages if
 they are left out.
 
-=item C<{authorization,request,refresh}_more_params>
+=item C<{authorization,request,replace}_more_params>
 
 These three methods list parameters that B<can> be included in the
-authorization url, the post to request tokens, and the post to refresh
+authorization url, the post to request tokens, and the post to replace
 tokens respectively.  In strict mode, supplying any parameters not
 included in more or required params will be an error.  Otherwise this has
 little effect.
 
-=item C<{authorization,request,refresh}_default_params>
+=item C<{authorization,request,replace}_default_params>
 
 These three methods returns a list of key/value pairs mapping parameters to
 B<default> values in the authorization url, the post to request tokens, and
-the post to refresh tokens respectively.  Supplying these can stop people
-from having to supply the parameters themselves.
+the post to get replacement tokens respectively.  Supplying these can stop
+people from having to supply the parameters themselves.
 
 An example where this could be useful is to support a flow that uses
 different types of requests than normal.  For example there are possible
