@@ -50,7 +50,7 @@ string.
                      service_provider => "Google",
                      request_url => "https://your.url.com/",
                      # Optional hook, but recommended.
-                     on_refresh => \&store_tokens,
+                     save_tokens => \&save_tokens,
                  );
 
     # URL for user to visit to start the process.
@@ -82,7 +82,7 @@ string.
                      request_url => "https://your.url.com/",
                      tokens => $token_string,
                      # Optional hook, but recommended.
-                     on_refresh => \&store_tokens,
+                     save_tokens => \&save_tokens,
                  );
 
 =head1 AUTHOR
