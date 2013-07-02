@@ -168,10 +168,10 @@ sub post_to_token_endpoint {
     return $ua->post($self->token_endpoint(), [%$param]);
 }
 
-sub access_token_type {
+sub access_token_class {
     my ($self, $type) = @_;
 
-    if ("Bearer" eq $type) {
+    if ("bearer" eq $type) {
         return "LWP::Authen::OAuth2::AccessToken::Bearer";
     }
     else {
@@ -233,7 +233,7 @@ $content
 EOT
     }
 
-    my $type = $self->access_token_type($data->{token_type});
+    my $type = $self->access_token_class(lc($data->{token_type}));
     if ($type !~ /^[\w\:]+\z/) {
         # We got an error. :-(
         return $oauth2->error($type);
@@ -493,9 +493,12 @@ your provider creates a new token type, or implements an existing token type
 in a quirky way that requires a nonstandard model to handle, this method can
 let you add support for that.
 
+The specification says that all the C<token_type> must be case insensitive,
+so all types are lower cased for you.
+
 If the return value does not look like a package name, it is assumed to be
-an error message.  So please put spaces in error messages, and not in your
-class name.
+an error message.  As long as you have spaces in your error messages and
+normal looking class names, this should DWIM.
 
 See L<LWP::Authen::OAuth2::AccessToken> for a description of the interface
 that your access token class needs to meet.  (You do not have to subclass
