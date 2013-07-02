@@ -1,5 +1,7 @@
 Changes
 lib/LWP/Authen/OAuth2.pm
+lib/LWP/Authen/OAuth2/AccessToken.pm
+lib/LWP/Authen/OAuth2/AccessToken/Bearer.pm
 lib/LWP/Authen/OAuth2/Args.pm
 lib/LWP/Authen/OAuth2/Overview.pod
 lib/LWP/Authen/OAuth2/ServiceProvider.pm
@@ -7,6 +9,8 @@ Makefile.PL
 MANIFEST			This list of files
 README
 t/LWP/Authen/OAuth2.t
+t/LWP/Authen/OAuth2/AccessToken.t
+t/LWP/Authen/OAuth2/AccessToken/Bearer.t
 t/LWP/Authen/OAuth2/Args.pm
 t/LWP/Authen/OAuth2/ServiceProvider.t
 t/manifest.t
