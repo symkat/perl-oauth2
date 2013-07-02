@@ -538,7 +538,7 @@ not always exact), and C<token_type> specifies how it is supposed to be used.
 
 If the I<token_type> is C<bearer> (case insensitive), then you should have a
 I<bearer token> as described by
-L<http://tools.ietf.org/html/rfc6750|RFV 6750>.  For as long as the token is
+L<http://tools.ietf.org/html/rfc6750|RFC 6750>.  For as long as the token is
 good, any request signed with it is authorized.  Signing is as simple as
 sending an https request with a header of:
 
