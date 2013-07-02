@@ -148,10 +148,9 @@ If you succeeded, you will receieve a I<code> in some way.  For instance if
 your I<redirect_uri> is a URL, it will have a get parameter named C<code>.
 
 You could get an C<error> parameter back instead.  See
-L<http://tools.ietf.org/html/draft-ietf-oauth-v2-31#section-4.1.2.1|a draft>
-for a list of the possible errors.  The draft indicates that optional fields
-could be included with extra detail.  I would not advise optimism on that
-point.
+L<http://http://tools.ietf.org/html/rfc6749#section-4.1.2.1|RFC 6749> for a
+list of the possible errors.  Note that there are possible optional fields
+with extra detail.  I would not advise optimism about their presence.
 
 L<LWP::Authen::OAuth2> is not involved with this.
 
@@ -307,7 +306,7 @@ I<flow>.
 
 It is, of course, up to the I<service provider> what I<flow>s are available
 and what they are called.  Here is a list of common ones from
-L<http://tools.ietf.org/html/draft-ietf-oauth-v2-31>.
+L<http://tools.ietf.org/html/rfc6749#section-2.1|RFC 6749>.
 
 =over 4
 
@@ -511,10 +510,21 @@ phase of the Moon.  (I am not aware of any I<service provider> that makes
 failure depend on the phase of the Moon, but the others are not made up.)
 
 The C<request_tokens> method of L<LWP::Authen::OAuth2> will make this
-request for you, read the JSON and create the tokens.  It is up to you to
-be notified by callback or direct request for the values of the tokens so
-that you can store them, then retrieve them to skip the handshake on
-future API calls.
+request for you, read the JSON and create the token or tokens.  If you passed
+in a C<save_tokens> callback in constructing your object, that will be
+called for you to store the tokens.  On future API calls you can retrieve
+that to skip the handshake if possible.
+
+=item token_type
+
+The I<token_type> is a case insensitive description of the type of token
+that you could be given.  In theory there is a finite list of types that you
+could encounter.  In practice I<service provider>s can add more, and it is
+not guaranteed that they will correctly implement 
+
+=item expires_in
+
+The 
 
 =item access_token
 
@@ -526,20 +536,26 @@ not always exact), and C<token_type> specifies how it is supposed to be used.
 
 =item Bearer token
 
-A I<Bearer token> is a token that, until it expires, will works for anyone
-who has it.  In the above example any https request with a header of:
+If the I<token_type> is C<bearer> (case insensitive), then you should have a
+I<bearer token> as described by
+L<http://tools.ietf.org/html/rfc6750|RFV 6750>.  For as long as the token is
+good, any request signed with it is authorized.  Signing is as simple as
+sending an https request with a header of:
 
     Authorization: Bearer 1/fFAGRNJru1FTz70BzhT3Zg
 
-is automatically authorized until that token expires.  This is the most
-common type of I<access_token> but, depending on the I<service provider> and
-your I<flow>, you may be handed another type of token that has to be signed
-in a different way.
+You can also sign by passing C<access_token=...> as a post or get parameter,
+though the specification recommends against using a get parameter.
+
+This is the most common type of I<access_token>.  However depending on the
+I<service provider> and I<flow> you could be handed another.
 
 Once you have completed your handshake, L<LWP::Authen::OAuth2> will
 automatically sign any C<get>, C<post>, or C<put> for you if it understands
-the token type.  If you run across a token type that is not understood, see
-L<LWP::Authen::OAuth2::AccessToken> for advice on how to add support for it.
+the token type.  If you run across a token type that is not already in the
+distribution (or is in the distribution, but your I<service provider>'s
+version has "quirks") see
+L<LWP::Authen::OAuth2::AccessToken> for advice on how to add support.
 
 =item request_token
 
@@ -579,11 +595,13 @@ and if lucky could get a response like
       "token_type":"Bearer",
     }
 
-In L<LWP::Authen::OAuth2> this request can be made with the
-C<refresh_access_token> method.  But you don't have to do that.  This request
-will automatically be made for you when you try to access the API, it is
-noticed that the I<access_token> has expired, and there is a I<request_token>
-available.  And then your original request goes through unimpeded.
+and if unlucky could get an error as above.
+
+In L<LWP::Authen::OAuth2> this request is made with the
+C<refresh_access_token> method.  But L<LWP::Authen::OAuth2> automates that
+for you - if you attempt to access the API and run into this error, then
+if possible your I<access_token> will be refreshed, the C<save_tokens>
+callback called, and the API method goes through transparently.
 
 =back
 
