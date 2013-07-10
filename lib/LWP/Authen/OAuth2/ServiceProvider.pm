@@ -2,7 +2,7 @@ package LWP::Authen::OAuth2::ServiceProvider;
 
 use 5.006;
 use strict;
-use warnings FATAL => 'all';
+
 use Carp qw(croak);
 use JSON qw(from_json);
 use Memoize qw(memoize);
@@ -15,51 +15,63 @@ use LWP::Authen::OAuth2::Args qw(copy_option assert_options_empty);
 
 # Construct a new object.
 sub new {
-    my $class = shift;
-    my $opt = {@_};
+    my ($class, $opts) = @_;
 
     # I start as an empty hashref.
     my $self = {};
 
     # But what class am I supposed to actually be?
-    if (not exists $opt->{service_provider}) {
+    if (not exists $opts->{service_provider}) {
         bless $self, $class;
     }
     else {
         # Convert "Google" to "LWP::Authen::OAuth2::ServiceProvider::Google"
-        $class = service_provider_class(delete $opt->{service_provider});
-        my $flow = delete $opt->{flow};
+        # Not a method because no object yet exists.
+        $class = service_provider_class(delete $opts->{service_provider});
+        my $flow = delete $opts->{flow};
         if (not defined($flow)) {
             $flow = "default";
         }
         bless $self, $class->flow_class($flow);
     }
 
+    $self->init($opts);
+}
+
+sub init {
+    my ($self, $opts) = @_;
+
     # Now let us consume options.  2 args = required, 3 = defaulted.
+    # In general subclasses should Just Work.
 
     # These are required, NOT provided by this class, but are by subclasses.
     for my $field (qw(token_endpoint authorization_endpoint)) {
         if ($self->can($field)) {
-            $self->copy_option($opt, $field, $self->$field);
+            $self->copy_option($opts, $field, $self->$field);
         }
         else {
-            $self->copy_option($opt, $field);
+            $self->copy_option($opts, $field);
         }
     }
 
     # These are defaulted by this class, maybe overridden by subclasses.
-    for my $action (qw(authorization request replace)) {
-        my $field = "$action\_required_params";
-        $self->copy_option($opt, $field, [$self->$field]);
-
-        $field = "$action\_more_params";
-        $self->copy_option($opt, $field, [$self->$field]);
-
-        $field = "$action\_default_params";
-        $self->copy_option($opt, $field, {$self->$field});
+    for my $field (
+        qw(required_defaults more_defaults),
+        map {
+            ("$_\_required_params", "$_\_more_params")
+        } qw(authorization request replace)
+    ) {
+        $self->copy_option($opts, $field, [$self->$field]);
     }
 
-    $self->assert_options_empty($opt);
+    # And hashrefs for default key/value pairs.
+    for my $field (
+        map "$_\_default_params", qw(authorization request replace)
+    ) {
+        $self->copy_option($opts, $field, {$self->$field});
+    }
+
+    $self->assert_options_empty($opts);
     return $self;
 }
 
@@ -99,6 +111,7 @@ sub collect_action_params {
     my $self = shift;
     my $action = shift;
     my $oauth2 = shift;
+    my $oauth2_args = $oauth2->for_service_provider;
     my @rest = @_;
     my $opt = {@_};
 
@@ -116,8 +129,8 @@ sub collect_action_params {
                      croak("Cannot pass undef for required param '$param'");
                  }
              }
-             elsif (defined $oauth2->{$param}) {
-                 $result->{$param} = $oauth2->{$param};
+             elsif (defined $oauth2_args->{$param}) {
+                 $result->{$param} = $oauth2_args->{$param};
              }
              elsif (defined $default->{$param}) {
                  $result->{$param} = $default->{$param};
@@ -128,7 +141,7 @@ sub collect_action_params {
         }
 
         for my $param (@{ $self->{"$action\_more_params"} }) {
-            for my $source ($result, $opt, $oauth2, $default) {
+            for my $source ($result, $opt, $oauth2_args, $default) {
                 if (exists $source->{$param}) {
                     # Only add it if it is not undef.  Else hide.
                     if (defined $source->{$param}) {
@@ -156,7 +169,7 @@ sub collect_action_params {
         my $result = {
             %$default,
             (
-                map $oauth2->{$_},
+                map $oauth2_args->{$_},
                     @{ $self->{"$action\_required_params"} },
                     @{ $self->{"$action\_more_params"} }
             ),
@@ -284,7 +297,7 @@ sub flow_class {
 # methods for service provider specific functionality.
 #
 # This is not expected to be a common need.
-sub flow_oauth2_class {
+sub oauth2_class {
     return "LWP::Authen::OAuth2";
 }
 
@@ -311,6 +324,14 @@ sub service_provider_class {
 }
 
 # DEFAULTS (should be overridden)
+sub required_defaults {
+    return qw(client_id client_secret);
+}
+
+sub more_defaults {
+    return qw(redirect_uri scope);
+}
+
 sub authorization_required_params {
     return qw(response_type client_id);
 }
@@ -436,27 +457,55 @@ be possible.
 
 =item C<authorization_endpoint>
 
-Returns the URL for the Authorization Endpoint for the service provider.
-Your subclass cannot function without this.
+Takes no arguments, returns the URL for the Authorization Endpoint for the
+service provider.  Your subclass cannot function without this.
 
 =item C<token_endpoint>
 
-Returns the URL for the Token Endpoint for the service provider.  Your
-subclass cannot function without this.
+Takes no arguments, returns the URL for the Token Endpoint for the service
+provider.  Your subclass cannot function without this.
+
+=item C<init>
+
+Subclasses are found and potentially loaded during C<new>.  Therefore you
+cannot override that.  However once an empty object is created of the final
+class that handles the service provider, the first call is
+C<$self->init($opts)> where C<$opts> is a hashref.  To consume options please
+use the following interface:
+
+    $self->copy_option($opts, $required_field);
+    $self->copy_option($opts, $optional_field, $default);
+
+This is actually called early in C<LWP::Authen::OAuth2->new(...)> with
+C<$opts> set to the options passed in there.  Thus any parameters that you
+consume here can override parameters passed there.
 
 =item C<flow_class>
 
 Given the name of a flow, returns the class for that flow and service
 provider.  Not required, but useful for service providers with many flows
-and different arguments.
+and different arguments.  The default is your class.
 
-If you provide this, it is your responsibility to make sure that those
-classes will be available.
+If you provide this, it is your responsibility to make sure that the
+required class is loaded.
 
 You also should map the flow C<default> to the most likely default flow that
 people will want to use.  This likely is whatever most closely resembles
 "webserver application".  That way people will be able to use your module
 without specifying a flow.
+
+=item C<required_defaults>
+
+The parameters that must be passed into C<LWP::Authen::OAuth2->new(...)> as
+defaults for any requests that need them.  The default required defaults are
+C<client_id> and C<client_secret>.  In general it is good to require any
+arguments that are needed to generate replacement tokens on a refresh.
+
+=item C<more_defaults>
+
+The parameters that can be passed into C<LWP::Authen::OAuth2->new(...)> as
+defaults for any requests that need them.  The default optional defaults are
+C<redirect_uri> and C<scope>.
 
 =item C<{authorization,request,replace}_required_params>
 
@@ -511,12 +560,14 @@ See L<LWP::Authen::OAuth2::AccessToken> for a description of the interface
 that your access token class needs to meet.  (You do not have to subclass
 that - just duck typing here.)
 
-=item C<flow_oauth_class>
+=item C<oauths_class>
 
-Override this if you need people using your service provider class to have
-methods exposed that are not available through L<LWP::Authen::OAuth2>.
-Few service provider classes should find a reason to do this, but it is at
-least possible.
+Override this to cause C<LWP::Authen::OAuth2->new(...)> to return a custom
+class.  This would be appropriate if people using your service provider need
+methods exposed that are not in L<LWP::Authen::OAuth2>.
+
+Few service provider classes should find a reason to do this, but it can be
+done if you need it to be.
 
 =item C<collect_action_tokens>
 

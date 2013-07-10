@@ -8,6 +8,11 @@ use Exporter qw(import);
 
 our @EXPORT_OK = qw(copy_option assert_options_empty);
 
+# Blessed empty hash.
+sub new {
+    return bless {}, shift;
+}
+
 sub copy_option {
     my $obj = shift;
     my $opts = shift;

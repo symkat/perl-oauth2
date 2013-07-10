@@ -37,6 +37,10 @@ current time.
 
     my $access_token = $class->from_ref($data);
 
+If you roll your own, be aware that the fields C<refresh_token> and
+C<_class> get used for purposes out of this class' control.  Any other fields
+may be used.  Please die fatally if you cannot construct an object.
+
 =cut
 
 sub from_ref {
@@ -48,7 +52,8 @@ sub from_ref {
 =head2 C<to_ref>
 
 Construct an unblessed data structure to represent the object that can be
-serialized as JSON.  The default implementation just creates a shallow copy.
+serialized as JSON.  The default implementation just creates a shallow copy
+and assumes there are no blessed subobjects.
 
 =cut
 

@@ -2,7 +2,251 @@ package LWP::Authen::OAuth2;
 
 use 5.006;
 use strict;
-use warnings FATAL => 'all';
+use warnings;
+
+use Carp qw(croak confess);
+# LWP::UserAgent lazyloads these, but we always need it.
+use HTTP::Request::Common;
+use JSON qw(encode_json decode_json);
+use LWP::UserAgent;
+use Module::Load qw(load);
+
+our @CARP_NOT = map "LWP::Authen::OAUth2::$_", qw(Args ServiceProvider);
+use LWP::Authen::OAuth2::Args qw(copy_option assert_options_empty);
+use LWP::Authen::OAuth2::ServiceProvider;
+
+sub new {
+    my ($class, %opts) = @_;
+
+    # Constructing the service provider can consume my options.
+    my $service_provider = LWP::Authen::OAuth2::ServiceProvider->new(\%opts);
+    my $self
+        = bless {
+              service_provider => $service_provider
+          }, $service_provider->oauth2_class();
+    $self->init(%opts, service_provider => $service_provider);
+    return $self;
+}
+
+sub init {
+    my ($self , %opts) = @_;
+
+    # Collect arguments for the service providers.
+    my $service_provider = $self->{service_provider};
+    my $for_service_provider = LWP::Authen::OAuth2::Arg->new();
+    for my $opt (@{ $service_provider->{required_defaults} }) {
+        $for_service_provider->copy_option(\%opts, $opt);
+    }
+    for my $opt (@{ $service_provider->{more_defaults} }) {
+        $for_service_provider->copy_option(\%opts, $opt, undef);
+    }
+    $self->{for_service_provider} = $for_service_provider;
+
+    $self->copy_option(\%opts, "error_handler", undef);
+    $self->copy_option(\%opts, "is_strict", 1);
+    $self->copy_option(\%opts, "prerefresh", undef);
+    $self->copy_option(\%opts, "save_tokens", undef);
+    $self->copy_option(\%opts, "token_string", undef);
+    $self->copy_option(\%opts, "user_agent", undef);
+
+    if ($self->{token_string}) {
+        # Probably not the object that I need in access_token.
+        my $tokens = eval{ decode_json($self->{token_string}) };
+        if ($@) {
+            croak("While decoding token_string: $@");
+        }
+        
+        my $class = $tokens->{_class}
+            or croak("No _class in token_string '$self->{token_string}'");
+
+        eval {load($class)};
+        if ($@) {
+            croak("Can't load access token class '$class': $@");
+        }
+
+        # I will assume this works.
+        $self->{access_token} = $class->from_ref($tokens);
+    }
+}
+
+# Standard shortcut request methods.
+sub delete {
+    my ($self, @parameters) = @_;
+    my @rest = $self->user_agent->_process_colonic_headers(\@parameters);
+    my $request = HTTP::Request::Common::DELETE(@parameters);
+    return $self->request($request, @rest);
+}
+
+sub get {
+    my ($self, @parameters) = @_;
+    my @rest = $self->user_agent->_process_colonic_headers(\@parameters);
+    my $request = HTTP::Request::Common::GET(@parameters);
+    return $self->request($request, @rest);
+}
+
+sub head {
+    my ($self, @parameters) = @_;
+    my @rest = $self->user_agent->_process_colonic_headers(\@parameters);
+    my $request = HTTP::Request::Common::HEAD(@parameters);
+    return $self->request($request, @rest);
+}
+
+sub post {
+    my ($self, @parameters) = @_;
+    my @rest = $self->user_agent->_process_colonic_headers(\@parameters);
+    my $request = HTTP::Request::Common::POST(@parameters);
+    return $self->request($request, @rest);
+}
+
+sub put {
+    my ($self, @parameters) = @_;
+    my @rest = $self->user_agent->_process_colonic_headers(\@parameters);
+    my $request = HTTP::Request::Common::PUT(@parameters);
+    return $self->request($request, @rest);
+}
+
+sub request {
+    my ($self, $request, @rest);
+    return $self->access_token->request($self, $request, @rest);
+}
+
+# Now all of the methods that I need.
+sub token_string {
+    my $self = shift;
+    if ($self->{access_token}) {
+        my $ref = $self->{access_token}->to_ref;
+        $ref->{_class} = ref($self->{access_token});
+        return encode_json($ref);
+    }
+    else {
+        return undef;
+    }
+}
+
+# This does the actual saving.
+sub _set_tokens {
+    my ($self, %opts) = @_;
+
+    my $tokens = copy_option(\%opts, "tokens");
+    my $skip_save = copy_option(\%opts, "skip_save", 0);
+    assert_options_empty(\%opts);
+
+    if (ref($tokens)) {
+        # Assume we have tokens.
+        $self->{access_token} = $tokens;
+        if ($self->{save_tokens} and not $skip_save) {
+            my $as_string = $self->token_string;
+            $self->{save_tokens}->($as_string);
+        }
+        return;
+    }
+    else {
+        # Assume we have an error message.
+        return $self->error($tokens);
+    }
+}
+
+sub authorization_url {
+    my ($self, %opts) = @_;
+
+    # If we get here, the service provider does it.
+    my $url = $self->{service_provider}->authorization_url($self, %opts);
+    if ($url =~ / /) {
+        # Assume an error.
+        return $self->error($url);
+    }
+    else {
+        return $url;
+    }
+}
+
+sub request_tokens {
+    my ($self, %opts) = @_;
+
+    # If we get here, the service provider does it.
+    my $tokens = $self->{service_provider}->request_tokens($self, %opts);
+    # _set_tokens will set an error if needed.
+    return $self->_set_tokens(tokens => $tokens);
+}
+
+sub refresh_access_token {
+    my ($self, %opts) = @_;
+
+    # Give a chance for the hook to do it.
+    if ($self->{prerefresh}) {
+        my $tokens = $self->{prerefresh}->($self, %opts);
+        if ($tokens) {
+            if (not (ref($tokens))) {
+                # Did I get JSON?
+                my $data = eval {decode_json($tokens)};
+                if ($data and not $@) {
+                    # Assume I got it.
+                    $tokens = $data;
+                }
+            }
+            return $self->_set_tokens(tokens => $tokens, skip_save => 1);
+        }
+    }
+
+    my $tokens = $self->{service_provider}->replacement_tokens($self, %opts);
+    # _set_tokens will set an error if needed.
+    return $self->_set_tokens(tokens => $tokens);
+}
+
+sub access_token {
+    my $self = shift;
+
+    if (not $self->{access_token}) {
+        confess("No access_token found");
+    }
+
+    return $self->{access_token};
+}
+
+sub set_is_strict {
+    my ($self, $strict) = @_;
+    $self->{is_strict} = $strict;
+}
+
+sub is_strict {
+    my $self = shift;
+    return $self->{is_strict};
+}
+
+sub set_error_handler {
+    my ($self, $handler) = @_;
+    $self->{error_handler} = @_;
+}
+
+sub error {
+    my $self = shift;
+    return $self->{error_handler}->(@_);
+}
+
+sub for_service_provider {
+    my $self = shift;
+    return $self->{for_service_provider} ||= {};
+}
+
+sub set_prerefresh {
+    my ($self, $prerefresh) = @_;
+    $self->{prerefresh} = $prerefresh;
+}
+
+sub set_save_tokens {
+    my ($self, $save_tokens) = @_;
+    $self->{save_tokens} = $save_tokens;
+}
+
+sub set_user_agent {
+    my ($self, $agent) = @_;
+    $self->{user_agent} = $agent;
+}
+
+sub user_agent {
+    my $self = shift;
+    return $self->{user_agent} ||= LWP::UserAgent->new();
+}
 
 =head1 NAME
 
@@ -21,36 +265,39 @@ our $VERSION = '0.01';
 
 OAuth 2 is a protocol that let's a I<user> tell a I<service provider> that a
 I<consumer> has permission to use the I<service provider>'s APIs to do things
-that require access to the I<user>'s account.  For a full explanation of the
-protocol, the terminology, and this module's role in the process, see
-L<LWP::Authen::OAuth2::Overview>.
+that require access to the I<user>'s account.  This module tries to make life
+easier for someone who wants to write a I<consumer> in Perl.
 
-L<LWP::Authen::OAuth2> proxies off of L<LWP::UserAgent> providing convenience
-methods to help the consumer go through the initial permission handshake, and
-after that to send signed requests to the service provider's API, including
-automatic retry logic when access tokens expire.
+Specifically it provides convenience methods for all of the requests that are
+made to the I<service provider> as part of the permission handshake, and
+after that will proxy off of L<LWP::UserAgent> to let you send properly
+authenticated requests to the API that you are trying to use.  When possible,
+this will include transparent refresh/retry logic for access tokens
+expiration.
 
-This module will not work with OAuth 1.  For a module to help with that, see
-the similarly named but otherwise unrelated L<LWP::Authen::OAuth>.
+For a full explanation of OAuth 2, common terminology, the requests that get
+made, and the necessary tasks that this module does not address, please see
+L<LWP::Authen::OAuth2::Overview>
 
-In the interest of focusing on one task, it is as important to know what this
-module does not do as it is to know what it does.  This module does none of
-the following necessary tasks for using OAuth 2: set up your client
-relationship with the service provider, script any of the necessary user
-interactions for the intial handshake, or provide any assistance with how
-you store private information beyond serializing/deserializing tokens to a
-string.
+This module will not help with OAuth 1.  See the similarly named but
+unrelated L<LWP::Authen::OAuth> for a module that can help with that.
+
+Here are examples of simple usage.
 
     use LWP::Authen::OAuth2;
 
-    # Constructor for the first time through.
+    # Constructor
     my $oauth2 = LWP::Authen::OAuth2->new(
                      client_id => "Public from service provider",
                      client_secret => "s3cr3t fr0m svc prov",
                      service_provider => "Google",
-                     request_url => "https://your.url.com/",
+                     redirect_uri => "https://your.url.com/",
+
                      # Optional hook, but recommended.
                      save_tokens => \&save_tokens,
+
+                     # And if you have tokens, no need to redo the handshake
+                     token_string => $token_string.
                  );
 
     # URL for user to visit to start the process.
@@ -59,31 +306,236 @@ string.
     # Get your tokens from the service provider.
     $oauth2->request_tokens(code => $code);
 
+    # Get your token as a string you can easily store, pass around, etc.
+    # If you passed in a save_tokens callback, that gets passed this.
+    my $token_string = $oauth2->token_string,
+
     # Access the API.  Consult the service_provider's documentation for when
     # to do which.
     $oauth2->get($url, %values);
     $oauth2->post($url, %values);
     $oauth2->put($url, %values);
+    $oauth2->delete($url, %values);
+    $oauth2->head($url, %values);
 
-    # Refresh your access token - if possible done for you automatically
-    # under the hood.
+    # Refresh your access token - should be done for you automatically
+    # under the hood but you can call it manually as well.
     $oauth2->refresh_access_token();
 
-    # Get your token as a string you can easily store, pass around, etc.
-    my $token_string = $oauth2->tokens->serialize;
+=head1 CONSTRUCTOR
 
-    # Constructor for the second time through if you have tokens.  Whether
-    # this works depends on the service provider, and you won't know for
-    # sure until you try their API.
-    my $oauth2 = LWP::Authen::OAuth2->new(
-                     client_id => "Public from service provider",
-                     client_secret => "s3cr3t fr0m svc prov",
-                     service_provider => "Google",
-                     request_url => "https://your.url.com/",
-                     tokens => $token_string,
-                     # Optional hook, but recommended.
-                     save_tokens => \&save_tokens,
-                 );
+When you call C<LWP::Authen::OAuth2->new(...)>, arguments are passed as a
+key/value list.  They are processed in the following phases:
+
+=over 4
+
+=item * Construct service provider
+
+=item * Service provider collects arguments it wants
+
+=item * L<LWP::Authen::OAuth2> overrides defaults from arguments
+
+=item * Sanity check
+
+=back
+
+Here are those phases in more detail.
+
+=over 4
+
+=item * Construct service provider
+
+There are two ways to construct a service provider.
+
+=over 4
+
+=item Prebuilt class
+
+To load a prebuilt class you just need one or two arguments.
+
+=over 4
+
+=item C<< service_provider => $Foo, >>
+
+In the above construct, C<$Foo> identifies the base class for your service
+provider.  The actual class will be the first of the following two classes
+that can be loaded.  Failure to find either is an error.
+
+    LWP::Authen::OAuth2::ServiceProvider $Foo
+    $Foo
+
+=item C<< flow => $flow, >>
+
+Service providers can choose to provide multiple flows, with different client
+interactions.  The base service provider class can support this by
+offering an optional C<flow> argument to get the right behavior.  See the
+service provider class for details.
+
+=back
+
+=item Built on the fly
+
+The behavior of simple service providers can be described on the fly without
+needing a prebuilt class.  To do that, the following arguments can be filled
+with arguments from your service provider:
+
+=over 4
+
+=item C<authorization_endpoint =E<gt> $auth_url,>
+
+This is the URL which the user is directed to in the authorization request.
+
+=item C<token_endpoint =E<gt> $token_url,>
+
+This is the URL which the consumer goes to for tokens.
+
+=item Various optional fields
+
+L<LWP::Authen::OAuth2::ServiceProvider> documents many methods that are
+available to customize the actual requests made, and defaults available.
+Simple service providers can likely get by without this, but here is a list
+of those methods that can be specified instead in the constructor:
+
+    # Arrayrefs
+    required_defaults
+    more_defaults
+    authorization_required_params
+    authorization_more_params
+    request_required_params
+    request_more_params
+    replace_required_params
+    replace_more_params
+
+    # Hashrefs
+    authorization_default_params
+    request_default_params
+    replace_default_params
+
+=back
+
+=item * Service provider collects arguments it wants
+
+The service provider knows what arguments are needed for every request.  So
+see it for the definitive lists.  But by default you are required to pass
+your C<client_id> and C<client_secret>.  And optionally can pass a
+C<redirect_uri> and C<scope>.  Optional arguments passed here do not need to
+be passed into the corresponding requests.
+
+=item * L<LWP::Authen::OAuth2> overrides defaults from arguments
+
+The following defaults are available to be overridden in the constructor, or
+can be overridden later.  In the unlikely event that there is a conflict with
+the service provider's arguments, these will have to be overridden later.
+
+=over 4
+
+=item C<error_handler =E<gt> \&error_handler,>
+
+Specifies the function that will be called when errors happen.  The default
+is C<Carp::croak>.
+
+=item C<is_strict =E<gt> $bool,>
+
+Is strict mode on?  If it is, then excess parameters to requests that are
+part of the authorization process will trigger errors.  If it is not, then
+excess arguments are passed to the service provider as is, who
+according to the specification is supposed to ignore them.
+
+Strict mode is the default.
+
+=item C<prerefresh =E<gt> \&prerefresh,>
+
+A handler to be called before attempting to refresh tokens.  It is passed the
+C<$oauth2> object.  If it returns a token string, that will be used to
+generate tokens instead of going to the service provider.
+
+This hook is available in case you want logic to prevent multiple requests
+being sent at once to refresh tokens.  By default this is missing.
+
+=item C<save_tokens =E<gt> \&save_tokens,>
+
+Whenever tokens are returned from the service provider, this callback will
+receive a token string that can be stored and then retrieved in another
+process that needs to construct a C<$oauth2> object.
+
+By default this is missing.  However it is useful for many use cases.
+
+=item C<token_string =E<gt> $token_string,>
+
+Supply tokens generated in a previous request so that you don't have to ask
+the service provider for new ones.  Some service providers refuse to hand out
+tokens too quickly, so this can be important.
+
+=item C<user_agent =E<gt> $ua,>
+
+What user agent gets used under the hood?  Defaults to a new
+L<lWP::UserAgent> created on the fly.
+
+=back
+
+=item * Sanity check
+
+Any arguments that are left over are assumed to be mistakes and a fatal
+warning is generated.
+
+=back
+
+=over 4
+
+=back
+
+=back
+
+=head1 METHODS
+
+Once you have an object, the following methods may be useful for writing a
+consumer.
+
+=head2 C<$oauth2-E<gt>authorization_url(%opts)>
+
+Generate a URL for the user to go to to request permissions.  By default the
+C<response_type> and C<client_id> are defaulted, and all of C<redirect_uri>,
+C<state> and C<scope> are optional but not required.  However in practice
+this all varies by service provider and flow, so look for documentation on
+that for the actual list that you need.
+
+=head2 C<$oauth2-E<gt>request_tokens(%opts)>
+
+Request tokens from the service provider (if possible).  By default the
+C<grant_type>, C<client_id> and C<client_secret> are defaulted, and the
+C<scope> is required.  However in practice this all varies by service
+provider and flow, so look for documentation on that for the actual list
+that you need.
+
+=head2 C<$oauth2-E<gt>set_is_strict($mode)>
+
+Set strict mode on/off.  See the discussion of C<is_strict> in the
+constructor for an explanation of what it does.
+
+=head2 C<$oauth2-E<gt>set_error_handler(\&error_handler)>
+
+Set the error handler.  See the discussion of C<error_handler> in the
+constructor for an explanation of what it does.
+
+=head2 C<$oauth2-E<gt>set_prerefresh(\&prerefresh)>
+
+Set the prerefresh handler.  See the discussion of C<prerefresh_handler> in
+the constructor for an explanation of what it does.
+
+=head2 C<$oauth2-E<gt>set_save_tokens($ua)>
+
+Set the save tokens handler.  See the discussion of C<save_tokens> in the
+constructor for an explanation of what it does.
+
+=head2 C<$oauth2-E<gt>set_user_agent($ua)>
+
+Set the user agent.  This should respond to the same methods that a
+L<LWP::UserAgent> responds to.
+
+=head2 C<$oauth2-E<gt>user_agent()>
+
+Get the user agent.  The default if none was explicitly set is a new
+L<LWP::UserAgent> object.
 
 =head1 AUTHOR
 

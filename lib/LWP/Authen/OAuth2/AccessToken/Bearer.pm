@@ -8,7 +8,7 @@ sub _request {
     my ($self, $oauth2, $request, @rest) = @_;
     my $actual_request = dclone($request);
     $actual_request->header('Authorization' => "Bearer $self->{access_token}");
-    return $oauth2->lwp->request($actual_request, @rest);
+    return $oauth2->user_agent->request($actual_request, @rest);
 }
 
 sub request {
