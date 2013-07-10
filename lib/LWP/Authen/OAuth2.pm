@@ -34,11 +34,15 @@ sub init {
     # Collect arguments for the service providers.
     my $service_provider = $self->{service_provider};
     my $for_service_provider = LWP::Authen::OAuth2::Arg->new();
+    my %is_required;
     for my $opt (@{ $service_provider->{required_defaults} }) {
+        $is_required{$opt}++;
         $for_service_provider->copy_option(\%opts, $opt);
     }
     for my $opt (@{ $service_provider->{more_defaults} }) {
-        $for_service_provider->copy_option(\%opts, $opt, undef);
+        if (not $is_required{$opt}) {
+            $for_service_provider->copy_option(\%opts, $opt, undef);
+        }
     }
     $self->{for_service_provider} = $for_service_provider;
 
@@ -506,6 +510,38 @@ C<grant_type>, C<client_id> and C<client_secret> are defaulted, and the
 C<scope> is required.  However in practice this all varies by service
 provider and flow, so look for documentation on that for the actual list
 that you need.
+
+=head2 C<$oauth2-E<gt>get(...)>
+
+Issue a C<get> request to an OAuth 2 protected URL, just like you would
+using L<LWP::UserAgent> to a normal URL.
+
+=head2 C<$oauth2-E<gt>head(...)>
+
+Issue a C<head> request to an OAuth 2 protected URL, just like you would
+using L<LWP::UserAgent> to a normal URL.
+
+=head2 C<$oauth2-E<gt>post(...)>
+
+Issue a C<post> request to an OAuth 2 protected URL, just like you would
+using L<LWP::UserAgent> to a normal URL.
+
+=head2 C<$oauth2-E<gt>delete(...)>
+
+Issue a C<delete> request to an OAuth 2 protected URL, similar to the
+previous examples.  (This shortcut is not by default available with
+L<LWP::UserAgent.)
+
+=head2 C<$oauth2-E<gt>put(...)>
+
+Issue a C<put> request to an OAuth 2 protected URL, similar to the
+previous examples.  (This shortcut is not by default available with
+L<LWP::UserAgent.)
+
+=head2 C<$oauth2-E<gt>request(...)>
+
+Issue any C<request> that you could issue with L<LWP::UserAgent>,
+except that it will be properly signed to go to an OAuth 2 protected URL.
 
 =head2 C<$oauth2-E<gt>set_is_strict($mode)>
 

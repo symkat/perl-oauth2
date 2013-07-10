@@ -2,6 +2,7 @@ package LWP::Authen::OAuth2::ServiceProvider;
 
 use 5.006;
 use strict;
+use warnings;
 
 use Carp qw(croak);
 use JSON qw(from_json);
@@ -505,7 +506,8 @@ arguments that are needed to generate replacement tokens on a refresh.
 
 The parameters that can be passed into C<LWP::Authen::OAuth2->new(...)> as
 defaults for any requests that need them.  The default optional defaults are
-C<redirect_uri> and C<scope>.
+C<redirect_uri> and C<scope>.  Note that there is no harm in having the same
+arguments be both required and optional.
 
 =item C<{authorization,request,replace}_required_params>
 

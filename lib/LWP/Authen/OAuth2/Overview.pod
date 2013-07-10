@@ -325,16 +325,17 @@ Can't keep secrets.  A Perl I<consumer> should not choose this.
 Application installed on a I<user>'s machine.  Can't keep secrets.  Possibly
 appropriate for a Perl I<consumer>.  It is not impossible that for some
 applications and I<service provider>s this will be the most convenient choice
-even if it is wrong.
+even if it is not a perfect fit.
 
 =back
 
 Just to give a sense of variability, as of the time of this writing, Google
-documents no less than 5 I<flow>s at
+documents no less than 6 I<flow>s at
 L<https://developers.google.com/accounts/docs/OAuth2>, none of which have
-been given the above names.  (They offer a new one, rename the top two, and
-split I<native application> into two different I<flow>s based on whether or
-not your application controls a usable web browser.)
+been given the above names.  They rename the top two, split
+I<native application> into two based on whether your application controls a
+browser, and add two new ones.  Most flows have optional arguments that are
+not described in the specification.
 
 =item client_id
 
