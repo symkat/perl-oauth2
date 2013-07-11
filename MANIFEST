@@ -12,7 +12,7 @@ README
 t/LWP/Authen/OAuth2.t
 t/LWP/Authen/OAuth2/AccessToken.t
 t/LWP/Authen/OAuth2/AccessToken/Bearer.t
-t/LWP/Authen/OAuth2/Args.pm
+t/LWP/Authen/OAuth2/Args.t
 t/LWP/Authen/OAuth2/ServiceProvider.t
 t/LWP/Authen/OAuth2/ServiceProvider/Google.t
 t/manifest.t

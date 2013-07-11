@@ -18,6 +18,8 @@ WriteMakefile(
         'Test::More' => 0,
     },
     PREREQ_PM => {
+        'LWP::UserAgent'    => 4.0,
+        'Mozilla::CA'       => 20000101,
         #'ABC'              => 1.6,
         #'Foo::Bar::Module' => 5.0401,
     },
