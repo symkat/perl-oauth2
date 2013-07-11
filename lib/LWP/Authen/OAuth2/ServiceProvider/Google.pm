@@ -101,6 +101,15 @@ sub init {
 package LWP::Authen::OAuth2::ServiceProvider::Google::WebServer;
 our @ISA = qw(LWP::Authen::OAuth2::ServiceProvider::Google);
 
+# Not guaranteed a refresh token, so require nothing.
+sub required_defaults {
+    return ();
+}
+
+sub more_defaults {
+    return qw(redirect_uri scope client_id client_secret);
+}
+
 sub authorization_more_params {
     my $self = shift;
     return (
@@ -129,30 +138,31 @@ our $VERSION = '0.01';
 
 =head1 SYNOPSIS
 
-See L<LWP::Authen::OAuth2> for basic usage.  In general where C<scope> is
-optional in the specification, it is required for Google.  But Google
-supports many flows, and their behavior varies widely.
+See L<LWP::Authen::OAuth2> for basic usage.  The one general note is that
+C<scope> is C<scope> is optional in the specification, but required for
+Google.  Beyond that Google supports many flows, and their behavior varies
+widely.
 
 See L<https://developers.google.com/accounts/docs/OAuth2> for Google's
-own documentation.  The documentation here is a highly abbreviated "here is
-what you really need to know" version of that.  So clarification should be
-able to be found there.
+own documentation.  The documentation here is a Cliff Notes version of that,
+so look there for any necessary clarification.
 
 =head1 REGISTERING
 
 Before you can use OAuth 2 with Google you need to register yourself as a
 client.  For that, go to L<https://code.google.com/apis/console>.  Follow
-their directions to create a project, choose a C<flow>, and then you'll be
-given a C<client_id> and C<client_secret>.  If you're in the Login, WebServer
-or Client flows you'll also need to register a C<redirect_uri> with them,
-which will need to be an C<https://...> URL under your control.
+their directions to create a project, choose your C<flow> (look ahead for
+advice on available flows), and then you'll be given a C<client_id> and
+C<client_secret>.  If you're in the Login, WebServer or Client flows you'll
+also need to register a C<redirect_uri> with them, which will need to be an
+C<https://...> URL under your control.
 
-At that point you have all of the facts that you need to use this module.
-Google can remove access that they believe is being used in abusive ways, so
-make sure not to publicize your C<client_secret>.
+At that point you have all of the facts that you need to use this module.  Be
+sure to keep your C<client_secret> secret - if someone else gets it and
+starts abusing it, Google reserves the right to block you.
 
 This module only handles the authorization step, after which it is up to you
-to use the API.
+to figure out how to use whatever API you want to access.
 
 =head1 FLOWS
 
@@ -187,11 +197,14 @@ After registering yourself as a client with Google, you will need to specify
 the C<redirect_uri> as an https URL under your control.  If you just need
 this for one or two accounts there is no need to actually build anything at
 that URL - just go through the authorization as those accounts and grab your
-C<code> from the URL.  If you will support many, you need to make that URL
-useful.
+C<code> from the URL.  If you will support many, making that URL useful is
+your responsibility.
 
-With this flow you have several optional arguments available to
-C<$oauth2-E<gt>authorization_url(...)> that are worth noting:
+With this flow you are not guaranteed a refresh token, so the constructor
+does not require C<client_id> and C<client_secret>.  (Passing them there is
+still likely to be convenient for you.) However there are several optional
+arguments available to C<$oauth2-E<gt>authorization_url(...)> that are worth
+taking note of:
 
 =over 4
 

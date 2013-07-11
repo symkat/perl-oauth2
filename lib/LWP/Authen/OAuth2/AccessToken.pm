@@ -9,7 +9,7 @@ our @CARP_NOT = qw(LWP::Authen::OAuth2);
 
 LWP::Authen::OAuth2::AccessToken - Access tokens for OAuth 2.
 
-=head VERSION
+=head1 VERSION
 
 Version 0.01;
 
@@ -86,7 +86,7 @@ sub should_refresh {
     # If the access tokens are short lived relative to $early_refresh_time
     # we cheat to avoid refreshing TOO often....
     if ($self->{expires_in}/2 < $early_refresh_time) {
-        $early_refresh_time = $self->{expires_in}/2);
+        $early_refresh_time = $self->{expires_in}/2;
     }
     my $expires_in = $self->expires_in();
     if ($expires_in < $early_refresh_time) {
@@ -97,16 +97,34 @@ sub should_refresh {
     }
 }
 
-=head2 C<can_refresh>
+=head2 C<for_refresh>
 
-Boolean saying whether it can refresh.  (Based off of the existence of a
-refresh_token.)
+Returns key/value pairs for C<$oauth2> (and eventually the service provider
+class) to use in trying to refresh.
 
 =cut
 
-sub can_refresh {
+sub for_refresh {
     my $self = shift;
-    return $self->{refresh_token};
+    if ($self->{refresh_token}) {
+        return refresh_token => $self->{refresh_token};
+    }
+    else {
+        return ();
+    }
+}
+
+=head2 C<copy_refresh_from>
+
+Pass in a previous access token, copy anything needed to refresh.
+
+=cut
+
+sub copy_refresh_from {
+    my ($self, $other) = @_;
+    if ($other->{refresh_token}) {
+        $self->{refresh_token} ||= $other->{refresh_token};
+    }
 }
 
 =head2 C<request>

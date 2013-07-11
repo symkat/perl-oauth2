@@ -15,8 +15,8 @@ sub request {
     my $self = shift;
     my ($oauth2, $request, @rest) = @_;
     if (
-        $self->can_refresh() and
-        $self->should_refresh($oauth2->{early_refresh_time} || 300)
+        $self->should_refresh($oauth2->{early_refresh_time} || 300) and
+        $oauth2->can_refresh_tokens()
     ) {
         $oauth2->refresh_access_token(
             refresh_token => $self->{refresh_token}
@@ -26,7 +26,7 @@ sub request {
     my $authenticate_header = $response->header("WWW-Authenticate");
     if (
         $authenticate_header =~ /\binvalid_token\b/ and
-        $self->can_refresh()
+        $oauth2->can_refresh_tokens()
     ) {
         # Someone's clock is wrong?  Try to refresh.
         $oauth2->refresh_access_token(

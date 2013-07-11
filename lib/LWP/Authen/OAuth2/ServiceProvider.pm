@@ -12,7 +12,9 @@ use URI;
 
 our @CARP_NOT = qw(LWP::Authen::OAuth2 LWP::Authen::OAuth2::Args);
 
-use LWP::Authen::OAuth2::Args qw(copy_option assert_options_empty);
+use LWP::Authen::OAuth2::Args qw(
+    extract_option copy_option assert_options_empty
+);
 
 # Construct a new object.
 sub new {
@@ -60,14 +62,14 @@ sub init {
         qw(required_defaults more_defaults),
         map {
             ("$_\_required_params", "$_\_more_params")
-        } qw(authorization request replace)
+        } qw(authorization request refresh)
     ) {
         $self->copy_option($opts, $field, [$self->$field]);
     }
 
     # And hashrefs for default key/value pairs.
     for my $field (
-        map "$_\_default_params", qw(authorization request replace)
+        map "$_\_default_params", qw(authorization request refresh)
     ) {
         $self->copy_option($opts, $field, {$self->$field});
     }
@@ -91,20 +93,30 @@ sub request_tokens {
     return $self->construct_tokens($oauth2, $response);
 }
 
-sub replacement_tokens {
-    my ($self, $oauth2, @rest) = @_;
-    my $param = $self->collect_action_params("replace", $oauth2, @rest);
-    my $response = $self->post_to_token_endpoint($oauth2, $param);
-    my $tokens = $self->construct_tokens($oauth2, $response);
-    if (ref($tokens)) {
-        if ($self->{refresh_token}) {
-            $tokens->{refresh_token} ||= $self->{refresh_token};
+sub can_refresh_tokens {
+    my ($self, $oauth2, %opt) = @_;
+    my %default = $self->refresh_default_params;
+    my $oauth2_args = $oauth2->for_service_provider;
+    for my $param ($self->refresh_required_params) {
+        if ( exists $default{$param}
+          or exists $oauth2_args->{$param}
+          or exists $opt{$param}
+        ) {
+            next;
         }
-        return $tokens;
+        else {
+            return 0;
+        }
     }
-    else {
-        return $tokens;
-    }
+    return 1;
+}
+
+sub refreshed_tokens {
+    my ($self, $oauth2, @rest) = @_;
+    my $param = $self->collect_action_params("refresh", $oauth2, @rest);
+    my $response = $self->post_to_token_endpoint($oauth2, $param);
+    # Error message or object, this is what we return.
+    return $self->construct_tokens($oauth2, $response);
 }
 
 sub collect_action_params {
@@ -278,6 +290,9 @@ EOT
     }
     else {
         # WE SURVIVED!  EVERYTHING IS GOOD!
+        if ($oauth2->access_token) {
+            $access_token->copy_refresh_from($oauth2->access_token);
+        }
         return $access_token;
     }
 }
@@ -356,15 +371,15 @@ sub request_default_params {
     return qw(grant_type authorization_code);
 }
 
-sub replace_required_params {
+sub refresh_required_params {
         return qw(grant_type refresh_token client_id client_secret);
 }
 
-sub replace_more_params {
+sub refresh_more_params {
         return qw();
 }
 
-sub replace_default_params {
+sub refresh_default_params {
     return qw(grant_type refresh_token);
 }
 
@@ -450,8 +465,12 @@ seldom needed, but things can vary sufficiently that the hook is provided
 For all of the potential complexity that is supported, B<most> service
 provider subclasses should be simple.  Just state what fields differ from the
 specification for specific requests and flows, then include documentation.
-However should you be supporting a truly crazy service provider, that should
-be possible.
+However should you have a crazy service provider, that should still be
+possible.
+
+Here are the methods that were designed to be useful to override.  See the
+source if you have a need that none of these address.  But if you can do what
+you need to do through these, please do.
 
 =over 4
 
@@ -470,15 +489,24 @@ provider.  Your subclass cannot function without this.
 Subclasses are found and potentially loaded during C<new>.  Therefore you
 cannot override that.  However once an empty object is created of the final
 class that handles the service provider, the first call is
-C<$self->init($opts)> where C<$opts> is a hashref.  To consume options please
-use the following interface:
+C<$self->init($opts)> where C<$opts> is a hashref.  This is actually called
+early in C<LWP::Authen::OAuth2->new(...)> with C<$opts> set to the options
+passed in there.  Thus any parameters that you consume here can override
+parameters passed there.
+
+To consume options and copy them to C<$self> please use the following
+interface:
 
     $self->copy_option($opts, $required_field);
     $self->copy_option($opts, $optional_field, $default);
 
-This is actually called early in C<LWP::Authen::OAuth2->new(...)> with
-C<$opts> set to the options passed in there.  Thus any parameters that you
-consume here can override parameters passed there.
+If you want to consume options and return them as values instead:
+
+    my $value1 = $self->extract_option($opts, $required_field);
+    my $value2 = $self->extract_option($opts, $optional_field, $default);
+
+This interface deletes from the hash, so do not try to consume an option
+twice.
 
 =item C<flow_class>
 
@@ -498,36 +526,37 @@ without specifying a flow.
 
 The parameters that must be passed into C<LWP::Authen::OAuth2->new(...)> as
 defaults for any requests that need them.  The default required defaults are
-C<client_id> and C<client_secret>.  In general it is good to require any
-arguments that are needed to generate replacement tokens on a refresh.
+C<client_id> and C<client_secret>.  In general it is good to only require
+arguments that are needed to generate refreshed tokens.  If your flow does
+not supply you with a C<refresh_token>, then you should require nothing.
 
 =item C<more_defaults>
 
 The parameters that can be passed into C<LWP::Authen::OAuth2->new(...)> as
 defaults for any requests that need them.  The default optional defaults are
 C<redirect_uri> and C<scope>.  Note that there is no harm in having the same
-arguments be both required and optional.
+arguments be both required and optional, or multiple times in optional.
 
-=item C<{authorization,request,replace}_required_params>
+=item C<{authorization,request,refresh}_required_params>
 
 These three methods list parameters that B<must> be included in the
-authorization url, the post to request tokens, and the post to replace
+authorization url, the post to request tokens, and the post to refresh
 tokens respectively.  Supplying these can give better error messages if
 they are left out.
 
-=item C<{authorization,request,replace}_more_params>
+=item C<{authorization,request,refresh}_more_params>
 
 These three methods list parameters that B<can> be included in the
-authorization url, the post to request tokens, and the post to replace
+authorization url, the post to request tokens, and the post to refresh
 tokens respectively.  In strict mode, supplying any parameters not
 included in more or required params will be an error.  Otherwise this has
 little effect.
 
-=item C<{authorization,request,replace}_default_params>
+=item C<{authorization,request,refresh}_default_params>
 
 These three methods returns a list of key/value pairs mapping parameters to
 B<default> values in the authorization url, the post to request tokens, and
-the post to get replacement tokens respectively.  Supplying these can stop
+the post to get refreshed tokens respectively.  Supplying these can stop
 people from having to supply the parameters themselves.
 
 An example where this could be useful is to support a flow that uses
@@ -561,21 +590,22 @@ See L<LWP::Authen::OAuth2::AccessToken> for a description of the interface
 that your access token class needs to meet.  (You do not have to subclass
 that - just duck typing here.)
 
-=item C<oauths_class>
+=item C<oauth2_class>
 
-Override this to cause C<LWP::Authen::OAuth2->new(...)> to return a custom
-class.  This would be appropriate if people using your service provider need
-methods exposed that are not in L<LWP::Authen::OAuth2>.
+Override this to cause C<LWP::Authen::OAuth2->new(...)> to return an object
+in a custom class.  This would be appropriate if people using your service
+provider need methods exposed that are not in L<LWP::Authen::OAuth2>.
 
 Few service provider classes should find a reason to do this, but it can be
-done if you need it to be.
+done if you need.
 
-=item C<collect_action_tokens>
+=item C<collect_action_params>
 
-Should your service provider support request types that do not fit into the
-usual model, this function can probably be used to construct those requests.
+This is the method that processes parameters for a given action.  Should
+your service provider support a new kind of request, you can use this along
+with the C<*_{required,more,default}_params> functions to support it.
 
-See the implementation of C<request_tokens> in this module for an example of
+The implementation of C<request_tokens> in this module give an example of
 how to use it.
 
 =back

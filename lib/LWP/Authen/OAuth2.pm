@@ -36,13 +36,14 @@ sub init {
     # Collect arguments for the service providers.
     my $service_provider = $self->{service_provider};
     my $for_service_provider = LWP::Authen::OAuth2::Args->new();
-    my %is_required;
+    my %is_seen;
     for my $opt (@{ $service_provider->{required_defaults} }) {
-        $is_required{$opt}++;
+        $is_seen{$opt}++;
         $for_service_provider->copy_option(\%opts, $opt);
     }
     for my $opt (@{ $service_provider->{more_defaults} }) {
-        if (not $is_required{$opt}) {
+        if (not $is_seen{$opt}) {
+            $is_seen{$opt}++;
             $for_service_provider->copy_option(\%opts, $opt, undef);
         }
     }
@@ -176,8 +177,23 @@ sub request_tokens {
     return $self->_set_tokens(tokens => $tokens);
 }
 
+sub can_refresh_tokens {
+    my $self = shift;
+    if (not $self->{access_token}) {
+        return 0;
+    }
+    else {
+        my %opts = ($self->{access_token}->for_refresh(), @_);
+        return $self->{service_provider}->can_refresh_tokens($self, %opts);
+    }
+}
+
 sub refresh_access_token {
-    my ($self, %opts) = @_;
+    my $self = shift;
+    if (not $self->{access_token}) {
+        croak("Cannot try to refresh access token without tokens");
+    }
+    my %opts = ($self->{access_token}->for_refresh(), @_);
 
     # Give a chance for the hook to do it.
     if ($self->{prerefresh}) {
@@ -195,17 +211,13 @@ sub refresh_access_token {
         }
     }
 
-    my $tokens = $self->{service_provider}->replacement_tokens($self, %opts);
+    my $tokens = $self->{service_provider}->refreshed_tokens($self, %opts);
     # _set_tokens will set an error if needed.
     return $self->_set_tokens(tokens => $tokens);
 }
 
 sub access_token {
     my $self = shift;
-
-    if (not $self->{access_token}) {
-        confess("No access_token found");
-    }
 
     return $self->{access_token};
 }
@@ -387,6 +399,10 @@ that can be loaded.  Failure to find either is an error.
     LWP::Authen::OAuth2::ServiceProvider $Foo
     $Foo
 
+A list of prebuilt service provider classes is in
+L<LWP::Authen::OAuth2::ServiceProvider> as well as instructions for making a
+new one.
+
 =item C<< flow => $flow, >>
 
 Service providers can choose to provide multiple flows, with different client
@@ -426,23 +442,30 @@ of those methods that can be specified instead in the constructor:
     authorization_more_params
     request_required_params
     request_more_params
-    replace_required_params
-    replace_more_params
+    refresh_required_params
+    refresh_more_params
 
     # Hashrefs
     authorization_default_params
     request_default_params
-    replace_default_params
+    refresh_default_params
 
 =back
 
 =item * Service provider collects arguments it wants
 
-The service provider knows what arguments are needed for every request.  So
-see it for the definitive lists.  But by default you are required to pass
-your C<client_id> and C<client_secret>.  And optionally can pass a
-C<redirect_uri> and C<scope>.  Optional arguments passed here do not need to
-be passed into the corresponding requests.
+In general, arguments passed into the constructor do not have to be passed
+into individual method calls.  Furthermore in order to be able to do the
+automatic token refresh for you, the constructor must include the arguments
+that will be required.
+
+By default you are required to pass your C<client_id> and C<client_secret>.
+And optionally can pass a C<redirect_uri> and C<scope>.  (The omission of
+C<state> is a deliberate hint that if you use that field, you should be
+generating random values on the fly.  And not trying to go to some reasonable
+default.)
+
+However what is required is up to the service provider.
 
 =item * L<LWP::Authen::OAuth2> overrides defaults from arguments
 
@@ -554,13 +577,13 @@ using L<LWP::UserAgent> to a normal URL.
 
 Issue a C<delete> request to an OAuth 2 protected URL, similar to the
 previous examples.  (This shortcut is not by default available with
-L<LWP::UserAgent.)
+L<LWP::UserAgent>.)
 
 =head2 C<$oauth2-E<gt>put(...)>
 
 Issue a C<put> request to an OAuth 2 protected URL, similar to the
 previous examples.  (This shortcut is not by default available with
-L<LWP::UserAgent.)
+L<LWP::UserAgent>.)
 
 =head2 C<$oauth2-E<gt>request(...)>
 
