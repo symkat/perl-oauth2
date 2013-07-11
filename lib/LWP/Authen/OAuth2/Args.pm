@@ -6,11 +6,29 @@ use Carp qw(croak confess);
 
 use Exporter qw(import);
 
-our @EXPORT_OK = qw(copy_option assert_options_empty);
+our @EXPORT_OK = qw(extract_option copy_option assert_options_empty);
 
 # Blessed empty hash.
 sub new {
     return bless {}, shift;
+}
+
+sub extract_option {
+    my $obj = shift;
+    my $opts = shift;
+    my $name = shift;
+    my $has_default = @_;
+    my $default = shift;
+
+    if (exists $opts->{$name}) {
+        return delete $opts->{$name};
+    }
+    elsif ($has_default) {
+        return $default;
+    }
+    else {
+        croak("'$name' is required, cannot be missing");
+    }
 }
 
 sub copy_option {

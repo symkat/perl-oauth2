@@ -357,11 +357,11 @@ sub request_default_params {
 }
 
 sub replace_required_params {
-        return qw(grant_type refresh_token client_id client_secret code);
+        return qw(grant_type refresh_token client_id client_secret);
 }
 
 sub replace_more_params {
-        return qw(scope);
+        return qw();
 }
 
 sub replace_default_params {

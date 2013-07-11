@@ -14,17 +14,27 @@ sub _request {
 sub request {
     my $self = shift;
     my ($oauth2, $request, @rest) = @_;
+    if (
+        $self->can_refresh() and
+        $self->should_refresh($oauth2->{early_refresh_time} || 300)
+    ) {
+        $oauth2->refresh_access_token(
+            refresh_token => $self->{refresh_token}
+        );
+    }
     my $response = $self->_request(@_);
     my $authenticate_header = $response->header("WWW-Authenticate");
     if (
         $authenticate_header =~ /\binvalid_token\b/ and
-        $self->{refresh_token}
+        $self->can_refresh()
     ) {
-        # According to the spec, the expected 401 $response->code is not
-        # required, even though it SHOULD be present.  So don't check for it.
-        my $oauth2 = $_[0];
-        if ($oauth2->refresh_access_token) {
-            # Try again!
+        # Someone's clock is wrong?  Try to refresh.
+        $oauth2->refresh_access_token(
+            refresh_token => $self->{refresh_token}
+        );
+
+        if ($self->expires_in < $oauth2->access_token->expires_in) {
+            # We seem to have renewed, try again.
             $response = $oauth2->access_token->_request(@_);
         }
     }

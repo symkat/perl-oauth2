@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Carp qw(confess);
-our @CARP_NOT = qw(LWP::Authen::OAuth2::AccessToken);
+our @CARP_NOT = qw(LWP::Authen::OAuth2);
 
 =head1 NAME
 
@@ -73,6 +73,35 @@ sub expires_in {
     my $self = shift;
     my $initial_expires_in = $self->{expires_in} || 3600;
     return $self->{create_time} + $initial_expires_in - time();
+}
+
+=head2 C<should_refresh>
+
+Boolean saying whether a refresh should be emitted now.
+
+=cut
+
+sub should_refresh {
+    my ($self, $early_refresh_time) = @_;
+    my $expires_in = $self->expires_in();
+    if ($expires_in < $early_refresh_time) {
+        return 1;
+    }
+    else {
+        return 0;
+    }
+}
+
+=head2 C<can_refresh>
+
+Boolean saying whether it can refresh.  (Based off of the existence of a
+refresh_token.)
+
+=cut
+
+sub can_refresh {
+    my $self = shift;
+    return $self->{refresh_token};
 }
 
 =head2 C<request>
