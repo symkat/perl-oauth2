@@ -137,19 +137,45 @@ available method (if any).
 =cut
 
 sub request {
-    confess("Method request needs to be overwritten.");
+    # Shift off one for easy redispatch to _request.
+    my $self = shift;
+    my ($oauth2, $request, @rest) = @_;
+    if (
+        $self->should_refresh($oauth2->{early_refresh_time} || 300) and
+        $oauth2->can_refresh_tokens()
+    ) {
+        $oauth2->refresh_access_token();
+        $self = $oauth2->access_token if ref($oauth2->access_token);
+    }
+    my ($response, $try_refresh) = $self->_request(@_);
+    if ($try_refresh and $oauth2->can_refresh_tokens()) {
+        # Someone's clock is wrong?  Try to refresh.
+        $oauth2->refresh_access_token();
+        if ($self->expires_in < $oauth2->access_token->expires_in) {
+            # We seem to have renewed, try again.
+            ($response, $try_refresh) = $oauth2->access_token->_request(@_);
+        }
+    }
+    return $response;
 }
 
 
 =head2 C<_request>
 
-Make a request with no retry logic.
+Make a request with no retry logic, and return a response, and a flag
+for whether it is possible the access token is expired..
 
-    my $response = $access_token->_request($oauth2, @request_for_lwp);
+    my ($response, $try_refresh)
+        = $access_token->_request($oauth2, @request_for_lwp);
+
+B<THIS IS THE ONLY METHOD A SUBCLASS MUST OVERRIDE!>
 
 =cut
 
 sub _request {
+    my ($self, $oauth2, $request, @rest) = @_;
+    # ...
+    # return ($response, $try_refresh);
     confess("Method _request needs to be overwritten.");
 }
 

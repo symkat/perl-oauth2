@@ -7,38 +7,19 @@ use Storable qw(dclone);
 sub _request {
     my ($self, $oauth2, $request, @rest) = @_;
     my $actual_request = dclone($request);
+    # This is where we sign it.
     $actual_request->header('Authorization' => "Bearer $self->{access_token}");
-    return $oauth2->user_agent->request($actual_request, @rest);
-}
+    my $response = $oauth2->user_agent->request($actual_request, @rest);
 
-sub request {
-    my $self = shift;
-    my ($oauth2, $request, @rest) = @_;
-    if (
-        $self->should_refresh($oauth2->{early_refresh_time} || 300) and
-        $oauth2->can_refresh_tokens()
-    ) {
-        $oauth2->refresh_access_token(
-            refresh_token => $self->{refresh_token}
-        );
+    # One would hope for a 401 status, but the specification only requires
+    # this header.  (Though recommends a 401 status.)
+    my $authenticate_header = $response->header("WWW-Authenticate") || "";
+    if ($authenticate_header =~ /\binvalid_token\b/) {
+        return ($response, 1);
     }
-    my $response = $self->_request(@_);
-    my $authenticate_header = $response->header("WWW-Authenticate");
-    if (
-        $authenticate_header =~ /\binvalid_token\b/ and
-        $oauth2->can_refresh_tokens()
-    ) {
-        # Someone's clock is wrong?  Try to refresh.
-        $oauth2->refresh_access_token(
-            refresh_token => $self->{refresh_token}
-        );
-
-        if ($self->expires_in < $oauth2->access_token->expires_in) {
-            # We seem to have renewed, try again.
-            $response = $oauth2->access_token->_request(@_);
-        }
+    else {
+        return ($response, 0);
     }
-    return $response;
 }
 
 =head1 NAME
@@ -68,7 +49,7 @@ Ben Tilly, C<< <btilly at gmail.com> >>
 
 =head1 BUGS
 
-We should support more kinds of access tokens.
+We should test this...
 
 =head1 ACKNOWLEDGEMENTS
 
