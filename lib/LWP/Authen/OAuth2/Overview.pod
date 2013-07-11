@@ -525,7 +525,11 @@ not guaranteed that they will correctly implement
 
 =item expires_in
 
-The 
+The number of seconds until you will need a new token because the old one
+should have expired.  L<LWP::Authen::OAuth2> provides the C<should_refresh>
+method to let you know when you need that new token.  (It actually starts
+returning true slightly early to avoid problems if clocks are not
+synchronized, or you begin a series of operations.)
 
 =item access_token
 
@@ -598,11 +602,19 @@ and if lucky could get a response like
 
 and if unlucky could get an error as above.
 
-In L<LWP::Authen::OAuth2> this request is made with the
-C<refresh_access_token> method.  But L<LWP::Authen::OAuth2> automates that
-for you - if you attempt to access the API and run into this error, then
-if possible your I<access_token> will be refreshed, the C<save_tokens>
-callback called, and the API method goes through transparently.
+In L<LWP::Authen::OAuth2> this request is made for you transparently behind
+the scenes if possible.  If you're curious when, look in the source for the
+C<refresh_access_token> method.  There are also optional callbacks that you
+can pass to let you save the tokens, or hijack the refresh method for your
+own purposes.  (Such as making sure that only one process tries to refresh
+tokens even though many are accessing it.)
+
+But note that not all flows offer a refresh token or the possibility of this
+request.  If you're on one of those flows then you need to send the I<user>
+back to the I<service provider> for authorization renewal.  From the
+I<user>'s point of view this is likely to be painless because it will be done
+with transparent redirects.  But there is no hiding the need for this from
+the I<consumer>.
 
 =back
 
