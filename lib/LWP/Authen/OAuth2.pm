@@ -12,7 +12,9 @@ use LWP::UserAgent;
 use Module::Load qw(load);
 
 our @CARP_NOT = map "LWP::Authen::OAUth2::$_", qw(Args ServiceProvider);
-use LWP::Authen::OAuth2::Args qw(copy_option assert_options_empty);
+use LWP::Authen::OAuth2::Args qw(
+    extract_option copy_option assert_options_empty
+);
 use LWP::Authen::OAuth2::ServiceProvider;
 
 sub new {
@@ -46,6 +48,7 @@ sub init {
     }
     $self->{for_service_provider} = $for_service_provider;
 
+    $self->copy_option(\%opts, "early_refresh_time", 300);
     $self->copy_option(\%opts, "error_handler", undef);
     $self->copy_option(\%opts, "is_strict", 1);
     $self->copy_option(\%opts, "prerefresh", undef);
@@ -131,8 +134,8 @@ sub token_string {
 sub _set_tokens {
     my ($self, %opts) = @_;
 
-    my $tokens = $self->copy_option(\%opts, "tokens");
-    my $skip_save = $self->copy_option(\%opts, "skip_save", 0);
+    my $tokens = $self->extract_option(\%opts, "tokens");
+    my $skip_save = $self->extract_option(\%opts, "skip_save", 0);
     assert_options_empty(\%opts);
 
     if (ref($tokens)) {
@@ -205,6 +208,17 @@ sub access_token {
     }
 
     return $self->{access_token};
+}
+
+sub should_refresh {
+    my $self = shift;
+
+    return $self->access_token->should_refresh($self->{early_refresh_time});
+}
+
+sub set_early_refresh_time {
+    my ($self, $early_refresh_time) = @_;
+    $self->{early_refresh_time} = $early_refresh_time;
 }
 
 sub set_is_strict {
@@ -305,7 +319,7 @@ Here are examples of simple usage.
                      # Optional hook, but recommended.
                      save_tokens => \&save_tokens,
 
-                     # And if you have tokens, no need to redo the handshake
+                     # This is for when you have tokens from last time.
                      token_string => $token_string.
                  );
 
@@ -327,9 +341,9 @@ Here are examples of simple usage.
     $oauth2->delete($url, %values);
     $oauth2->head($url, %values);
 
-    # Refresh your access token - should be done for you automatically
-    # under the hood but you can call it manually as well.
-    $oauth2->refresh_access_token();
+    # In flows where you can't automatically refresh tokens, it is nice to
+    # know when to send the user back to the authorization_url...
+    $oauth2->should_refresh();
 
 =head1 CONSTRUCTOR
 
@@ -452,6 +466,11 @@ according to the specification is supposed to ignore them.
 
 Strict mode is the default.
 
+=item C<early_refresh_time =E<gt> $seconds,>
+
+How many seconds before the end of estimated access token expiration you
+will have C<should_refresh> start returning true.
+
 =item C<prerefresh =E<gt> \&prerefresh,>
 
 A handler to be called before attempting to refresh tokens.  It is passed the
@@ -547,6 +566,17 @@ L<LWP::UserAgent.)
 
 Issue any C<request> that you could issue with L<LWP::UserAgent>,
 except that it will be properly signed to go to an OAuth 2 protected URL.
+
+=head2 C<$oauth2-E<gt>should_refresh()>
+
+Is it time to refresh tokens?
+
+=head2 C<$oauth2-E<gt>set_early_refresh_time($seconds)>
+
+Set how many seconds before the end of token expiration the method
+C<should_refresh> will start turning true.  Values over half the initial
+expiration time of access tokens will be ignored to avoid refreshing too
+often.  This defaults to 300.
 
 =head2 C<$oauth2-E<gt>set_is_strict($mode)>
 

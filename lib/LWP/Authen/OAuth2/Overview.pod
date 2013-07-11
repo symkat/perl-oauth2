@@ -330,12 +330,12 @@ even if it is not a perfect fit.
 =back
 
 Just to give a sense of variability, as of the time of this writing, Google
-documents no less than 6 I<flow>s at
+documents no less than six I<flow>s at
 L<https://developers.google.com/accounts/docs/OAuth2>, none of which have
 been given the above names.  They rename the top two, split
 I<native application> into two based on whether your application controls a
-browser, and add two new ones.  Most flows have optional arguments that are
-not described in the specification.
+browser, and add two new ones.  Half require interactions that are not
+described in the specification, and the rest have added optional arguments.
 
 =item client_id
 
