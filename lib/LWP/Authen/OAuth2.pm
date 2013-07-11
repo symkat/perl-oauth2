@@ -33,7 +33,7 @@ sub init {
 
     # Collect arguments for the service providers.
     my $service_provider = $self->{service_provider};
-    my $for_service_provider = LWP::Authen::OAuth2::Arg->new();
+    my $for_service_provider = LWP::Authen::OAuth2::Args->new();
     my %is_required;
     for my $opt (@{ $service_provider->{required_defaults} }) {
         $is_required{$opt}++;
@@ -110,7 +110,7 @@ sub put {
 }
 
 sub request {
-    my ($self, $request, @rest);
+    my ($self, $request, @rest) = @_;
     return $self->access_token->request($self, $request, @rest);
 }
 
@@ -131,8 +131,8 @@ sub token_string {
 sub _set_tokens {
     my ($self, %opts) = @_;
 
-    my $tokens = copy_option(\%opts, "tokens");
-    my $skip_save = copy_option(\%opts, "skip_save", 0);
+    my $tokens = $self->copy_option(\%opts, "tokens");
+    my $skip_save = $self->copy_option(\%opts, "skip_save", 0);
     assert_options_empty(\%opts);
 
     if (ref($tokens)) {
@@ -224,7 +224,12 @@ sub set_error_handler {
 
 sub error {
     my $self = shift;
-    return $self->{error_handler}->(@_);
+    if ($self->{error_handler}) {
+        return $self->{error_handler}->(@_);
+    }
+    else {
+        croak(@_);
+    }
 }
 
 sub for_service_provider {

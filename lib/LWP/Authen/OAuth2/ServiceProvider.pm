@@ -5,12 +5,12 @@ use strict;
 use warnings;
 
 use Carp qw(croak);
-use JSON qw(from_json);
+use JSON qw(decode_json);
 use Memoize qw(memoize);
 use Module::Load qw(load);
 use URI;
 
-our @CARP_NOT = qw(LWP::Authen::OAuth2::Args);
+our @CARP_NOT = qw(LWP::Authen::OAuth2 LWP::Authen::OAuth2::Args);
 
 use LWP::Authen::OAuth2::Args qw(copy_option assert_options_empty);
 
@@ -72,12 +72,11 @@ sub init {
         $self->copy_option($opts, $field, {$self->$field});
     }
 
-    $self->assert_options_empty($opts);
     return $self;
 }
 
 sub authorization_url {
-    my ($self, $oauth2, @rest);
+    my ($self, $oauth2, @rest) = @_;
     my $param
         = $self->collect_action_params("authorization", $oauth2, @rest);
     my $uri = URI->new($self->{"authorization_endpoint"});
@@ -86,14 +85,14 @@ sub authorization_url {
 }
 
 sub request_tokens {
-    my ($self, $oauth2, @rest);
+    my ($self, $oauth2, @rest) = @_;
     my $param = $self->collect_action_params("request", $oauth2, @rest);
     my $response = $self->post_to_token_endpoint($oauth2, $param);
     return $self->construct_tokens($oauth2, $response);
 }
 
 sub replacement_tokens {
-    my ($self, $oauth2, @rest);
+    my ($self, $oauth2, @rest) = @_;
     my $param = $self->collect_action_params("replace", $oauth2, @rest);
     my $response = $self->post_to_token_endpoint($oauth2, $param);
     my $tokens = $self->construct_tokens($oauth2, $response);
@@ -247,7 +246,7 @@ EOT
         }
         return $message;
     }
-    elsif (not $response->{token_type}) {
+    elsif (not $data->{token_type}) {
         # Someone failed to follow the spec...
         return <<"EOT";
 Token endpoint missing expected token_type in successful response.

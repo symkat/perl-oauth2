@@ -23,11 +23,6 @@ sub authorization_more_params {
     return ("login_hint", $self->SUPER::authorization_more_params());
 }
 
-sub request_required_params {
-    my $self = shift;
-    return ("scope", $self->SUPER::request_required_params());
-}
-
 my %flow_class
     = (
           default => "WebServer",
@@ -50,17 +45,21 @@ sub flow_class {
 }
 
 package LWP::Authen::OAuth2::ServiceProvider::Google::Device;
-our @ISA = qw(LWP::Authen::OAuth2::ServiceProvider);
+our @ISA = qw(LWP::Authen::OAuth2::ServiceProvider::Google);
 
 sub init {
     Carp::confess(__PACKAGE__ . " is not implemented.");
 }
 
 package LWP::Authen::OAuth2::ServiceProvider::Google::Installed;
-our @ISA = qw(LWP::Authen::OAuth2::ServiceProvider);
+our @ISA = qw(LWP::Authen::OAuth2::ServiceProvider::Google);
+
+sub init {
+    Carp::confess(__PACKAGE__ . " is not implemented.");
+}
 
 package LWP::Authen::OAuth2::ServiceProvider::Google::Login;
-our @ISA = qw(LWP::Authen::OAuth2::ServiceProvider);
+our @ISA = qw(LWP::Authen::OAuth2::ServiceProvider::Google);
 
 sub init {
     Carp::confess(__PACKAGE__ . " is not implemented.");
@@ -93,14 +92,14 @@ sub request_default_params {
 }
 
 package LWP::Authen::OAuth2::ServiceProvider::Google::Service;
-our @ISA = qw(LWP::Authen::OAuth2::ServiceProvider);
+our @ISA = qw(LWP::Authen::OAuth2::ServiceProvider::Google);
 
 sub init {
     Carp::confess(__PACKAGE__ . " is not implemented.");
 }
 
 package LWP::Authen::OAuth2::ServiceProvider::Google::WebServer;
-our @ISA = qw(LWP::Authen::OAuth2::ServiceProvider);
+our @ISA = qw(LWP::Authen::OAuth2::ServiceProvider::Google);
 
 sub authorization_more_params {
     my $self = shift;
@@ -108,6 +107,11 @@ sub authorization_more_params {
         "access_type", "approval_prompt",
         $self->SUPER::authorization_more_params()
     );
+}
+
+sub request_required_params {
+    my $self = shift;
+    return ("redirect_uri", $self->SUPER::request_required_params());
 }
 
 =head1 NAME
@@ -204,7 +208,7 @@ but then it worked perfectly.
 
 =item C<approval_prompt>
 
-Pass C<approval_prompt =E<gt> "prompt",> to C<$oauth2->request_tokens(...)> to
+Pass C<approval_prompt =E<gt> "force",> to C<$oauth2->request_tokens(...)> to
 force the user to see the approval screen.  The default behavior without this
 is that the user sees the approval screen the first time through, and on
 subsequent times just gets an immediate redirect.

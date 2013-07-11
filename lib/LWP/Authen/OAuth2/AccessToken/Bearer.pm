@@ -12,7 +12,8 @@ sub _request {
 }
 
 sub request {
-    my ($self, $oauth2, $request, @rest) = @_;
+    my $self = shift;
+    my ($oauth2, $request, @rest) = @_;
     my $response = $self->_request(@_);
     my $authenticate_header = $response->header("WWW-Authenticate");
     if (
