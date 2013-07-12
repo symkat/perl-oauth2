@@ -1,4 +1,5 @@
 Changes
+ignore.txt
 lib/LWP/Authen/OAuth2.pm
 lib/LWP/Authen/OAuth2/AccessToken.pm
 lib/LWP/Authen/OAuth2/AccessToken/Bearer.pm
@@ -9,6 +10,7 @@ lib/LWP/Authen/OAuth2/ServiceProvider/Google.pm
 Makefile.PL
 MANIFEST			This list of files
 README
+README.md
 t/LWP/Authen/OAuth2.t
 t/LWP/Authen/OAuth2/AccessToken.t
 t/LWP/Authen/OAuth2/AccessToken/Bearer.t
@@ -16,5 +18,4 @@ t/LWP/Authen/OAuth2/Args.t
 t/LWP/Authen/OAuth2/ServiceProvider.t
 t/LWP/Authen/OAuth2/ServiceProvider/Google.t
 t/manifest.t
-t/pod-coverage.t
 t/pod.t

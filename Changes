@@ -4,3 +4,9 @@ Revision history for LWP-Authen-OAuth2
         First version, released on an unsuspecting world with much
         documentation and no useful tests.
 
+0.02    20130712 - 2:54 PM PDT
+        *sigh*  My machine was not running all of the tests that module
+        starter installed.  Other environments did, and therefore failed.
+        Removed or fixed those.  (Really, I do not want to have end user
+        documentation in subclasses of parent methods that they were
+        supposed to override.)
