@@ -18,10 +18,10 @@ WriteMakefile(
         'Test::More' => 0,
     },
     PREREQ_PM => {
-        'LWP::UserAgent'    => 4.0,
+        'LWP'               => 4.0,
+        'HTTP::Protocol::https' => 6.0,
         'Mozilla::CA'       => 20000101,
-        #'ABC'              => 1.6,
-        #'Foo::Bar::Module' => 5.0401,
+        'JSON'              => 2,
     },
     dist  => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean => { FILES => 'LWP-Authen-OAuth2-*' },
