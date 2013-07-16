@@ -31,11 +31,11 @@ sub new {
         # Convert "Google" to "LWP::Authen::OAuth2::ServiceProvider::Google"
         # Not a method because no object yet exists.
         $class = service_provider_class(delete $opts->{service_provider});
-        my $flow = delete $opts->{flow};
-        if (not defined($flow)) {
-            $flow = "default";
+        my $client_type = delete $opts->{client_type};
+        if (not defined($client_type)) {
+            $client_type = "default";
         }
-        bless $self, $class->flow_class($flow);
+        bless $self, $class->client_type_class($client_type);
     }
 
     $self->init($opts);
@@ -59,9 +59,9 @@ sub init {
 
     # These are defaulted by this class, maybe overridden by subclasses.
     for my $field (
-        qw(required_defaults more_defaults),
+        qw(required_init optional_init),
         map {
-            ("$_\_required_params", "$_\_more_params")
+            ("$_\_required_params", "$_\_optional_params")
         } qw(authorization request refresh)
     ) {
         $self->copy_option($opts, $field, [$self->$field]);
@@ -152,7 +152,7 @@ sub collect_action_params {
              }
         }
 
-        for my $param (@{ $self->{"$action\_more_params"} }) {
+        for my $param (@{ $self->{"$action\_optional_params"} }) {
             for my $source ($result, $opt, $oauth2_args, $default) {
                 if (exists $source->{$param}) {
                     # Only add it if it is not undef.  Else hide.
@@ -183,7 +183,7 @@ sub collect_action_params {
             (
                 map $oauth2_args->{$_},
                     @{ $self->{"$action\_required_params"} },
-                    @{ $self->{"$action\_more_params"} }
+                    @{ $self->{"$action\_optional_params"} }
             ),
             %$opt
         };
@@ -297,8 +297,8 @@ EOT
     }
 }
 
-# Override for your flows if you have multiple.
-sub flow_class {
+# Override for your client_types if you have multiple.
+sub client_type_class {
     my ($class, $name) = @_;
     if ("default" eq $name) {
         return $class;
@@ -339,11 +339,11 @@ sub service_provider_class {
 }
 
 # DEFAULTS (should be overridden)
-sub required_defaults {
+sub required_init {
     return qw(client_id client_secret);
 }
 
-sub more_defaults {
+sub optional_init {
     return qw(redirect_uri scope);
 }
 
@@ -351,7 +351,7 @@ sub authorization_required_params {
     return qw(response_type client_id);
 }
 
-sub authorization_more_params {
+sub authorization_optional_params {
     return qw(redirect_uri state scope);
 }
 
@@ -363,7 +363,7 @@ sub request_required_params {
     return qw(grant_type client_id client_secret code);
 }
 
-sub request_more_params {
+sub request_optional_params {
     return qw(state);
 }
 
@@ -375,7 +375,7 @@ sub refresh_required_params {
         return qw(grant_type refresh_token client_id client_secret);
 }
 
-sub refresh_more_params {
+sub refresh_optional_params {
         return qw();
 }
 
@@ -389,25 +389,25 @@ LWP::Authen::OAuth2::ServiceProvider - Understand OAuth2 Service Providers
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 =head1 SYNOPSIS
 
 This is a base module for representing an OAuth 2 service provider.  It is
-implicitly constructed from the parameters to C<LWP::Authen::OAuth2->new>,
+implicitly constructed from the parameters to C<LWP::Authen::OAuth2-E<gt>new>,
 and is automatically delegated to when needed.
 
 The first way to try to specify the service provider is with the parameters
-C<service_provider> and possibly C<flow>:
+C<service_provider> and possibly C<client_type>:
 
     LWP::Authen::OAuth2->new(
         ...
         service_provider => "Foo",
-        flow => "Bar", # optional
+        client_type => "bar", # optional
         ...
     );
 
@@ -415,7 +415,7 @@ The first parameter will cause L<LWP::Authen::OAuth2::ServiceProvider> to
 look for either C<LWP::Authen::OAuth2::ServiceProvider::Foo>, or if that is
 not found, for C<Foo>.  (If neither is present, an exception will be thrown.)
 The second parameter will be passed to that module which can choose to
-customize the service provider behavior based on the flow.
+customize the service provider behavior based on the client_type.
 
 The other way to specify the service provider is by passing in sufficient
 parameters to create a custom one on the fly:
@@ -427,7 +427,7 @@ parameters to create a custom one on the fly:
 
         # These are optional but let you get the typo checks of strict mode
         authorization_required_params => [...],
-        authorization_more_params => [...],
+        authorization_optional_params => [...],
         ...
     );
 
@@ -454,19 +454,18 @@ it is useful to understand how things get delegated under the hood.
 First L<LWP::Authen::OAuth2> asks L<LWP::Authen::OAuth2::ServiceProvider> to
 construct a service provider.  Based on the C<service_provider> argument, it
 figures out that it needs to load and use your base class.  A service
-provider will generally support multiple flows with different behaviors.  You
-are free to take the flow and dynamically decide which subclass of yours will
-be loaded instead.  Should your subclass need to, it can decide that that a
-subclass of L<LWP::Authen::OAuth2> should be used that actually knows about
-request types that are specific to your service provider.  This should be
-seldom needed, but things can vary sufficiently that the hook is provided
-"just in case".
+provider might need different behaviors for different client types.  You
+are free to take the client type and dynamically decide which subclass of
+yours will be loaded instead to get the correct flow.  Should your subclass
+need to, it can decide that that a subclass of L<LWP::Authen::OAuth2> should
+be used that actually knows about request types that are specific to your
+service provider.  Hopefully most service providers do not need this, but
+some do.
 
 For all of the potential complexity that is supported, B<most> service
 provider subclasses should be simple.  Just state what fields differ from the
-specification for specific requests and flows, then include documentation.
-However should you have a crazy service provider, that should still be
-possible.
+specification for specific requests and client types, then include
+documentation.  However even crazy service providers should be supportable.
 
 Here are the methods that were designed to be useful to override.  See the
 source if you have a need that none of these address.  But if you can do what
@@ -484,18 +483,34 @@ service provider.  Your subclass cannot function without this.
 Takes no arguments, returns the URL for the Token Endpoint for the service
 provider.  Your subclass cannot function without this.
 
+=item C<client_type_class>
+
+This method receives your class name and the passed in C<client_type>.
+It is supposed to make sure that the class that handles that
+C<client_type> is loaded, and then return it.  This let's you handle service
+providers with different behavior for different types of clients.
+
+The base implementation just returns your class name.
+
+If the programmer does not pass an explicit C<client_type> the value that is
+passed in is C<default>.  So that should be mapped to a reasonable client
+type.  This likely is something along the line of "webserver".  That way
+your module can be used without specifying a C<client_type>.
+
 =item C<init>
 
-Subclasses are found and potentially loaded during C<new>.  Therefore you
-cannot override that.  However once an empty object is created of the final
-class that handles the service provider, the first call is
-C<$self->init($opts)> where C<$opts> is a hashref.  This is actually called
-early in C<LWP::Authen::OAuth2->new(...)> with C<$opts> set to the options
-passed in there.  Thus any parameters that you consume here can override
-parameters passed there.
+After C<new> has figured out the right class to load, it immediately calls
+C<$self-e<gt>init($opts)> with C<$opts> being a hashref of all options passed
+to C<LWP::Authen::OAuth2-E<gt>new(...)> that were not consumed in figuring
+out the service provider.  This method can then extract any parameters that
+it wants to before anything else happens.
+
+If you only want to require/allow a few parameters to be extracted into the
+service provider object, then there is no need to write your own C<init>.
+But if you want additional logic depending on passed in parameters, you can.
 
 To consume options and copy them to C<$self> please use the following
-interface:
+methods:
 
     $self->copy_option($opts, $required_field);
     $self->copy_option($opts, $optional_field, $default);
@@ -505,37 +520,29 @@ If you want to consume options and return them as values instead:
     my $value1 = $self->extract_option($opts, $required_field);
     my $value2 = $self->extract_option($opts, $optional_field, $default);
 
-This interface deletes from the hash, so do not try to consume an option
-twice.
+These methods delete from the hash, so do not try to consume an option twice.
 
-=item C<flow_class>
+=item C<required_init>
 
-Given the name of a flow, returns the class for that flow and service
-provider.  Not required, but useful for service providers with many flows
-and different arguments.  The default is your class.
+The parameters that must be passed into C<LWP::Authen::OAuth2-E<gt>new(...)>
+to initialize the service provider object.  The default required parameters
+are C<client_id> and C<client_secret>, which in turn get used as default
+arguments inside of methods that need them.  In general it is good to only
+require arguments that are needed to generate refreshed tokens.  If you will
+not get a C<refresh_token> in your flow, then you should require nothing.
 
-If you provide this, it is your responsibility to make sure that the
-required class is loaded.
+=item C<optional_init>
 
-You also should map the flow C<default> to the most likely default flow that
-people will want to use.  This likely is whatever most closely resembles
-"webserver application".  That way people will be able to use your module
-without specifying a flow.
+The parameters that can be passed into C<LWP::Authen::OAuth2-E<gt>new(...)> to
+initialize the service provider object.  The default optional parameters are
+C<redirect_uri> and C<scope> which, if passed, do not have to be passed into
+other method calls.
 
-=item C<required_defaults>
+The C<state> is not included as an explicit hint that you should not simply
+use a default value.
 
-The parameters that must be passed into C<LWP::Authen::OAuth2->new(...)> as
-defaults for any requests that need them.  The default required defaults are
-C<client_id> and C<client_secret>.  In general it is good to only require
-arguments that are needed to generate refreshed tokens.  If your flow does
-not supply you with a C<refresh_token>, then you should require nothing.
-
-=item C<more_defaults>
-
-The parameters that can be passed into C<LWP::Authen::OAuth2->new(...)> as
-defaults for any requests that need them.  The default optional defaults are
-C<redirect_uri> and C<scope>.  Note that there is no harm in having the same
-arguments be both required and optional, or multiple times in optional.
+Note that these lists are deduped, so there is no harm in parameters being
+both required and optional, or appearing multiple times.
 
 =item C<{authorization,request,refresh}_required_params>
 
@@ -544,7 +551,7 @@ authorization url, the post to request tokens, and the post to refresh
 tokens respectively.  Supplying these can give better error messages if
 they are left out.
 
-=item C<{authorization,request,refresh}_more_params>
+=item C<{authorization,request,refresh}_optional_params>
 
 These three methods list parameters that B<can> be included in the
 authorization url, the post to request tokens, and the post to refresh
@@ -560,10 +567,9 @@ the post to get refreshed tokens respectively.  Supplying these can stop
 people from having to supply the parameters themselves.
 
 An example where this could be useful is to support a flow that uses
-different types of requests than normal.  For example there are possible
-requests in the specification with C<grant_type=password> and
-C<grant_type=client_credentials> that could be substituted for
-C<request_tokens> with a flow and service provider that supports them.
+different types of requests than normal.  For example with some client types
+and service providers, you might use a type of request with a
+C<grant_type> of C<password> or C<client_credentials>.
 
 =item C<post_to_token_endpoint>
 
@@ -592,7 +598,7 @@ that - just duck typing here.)
 
 =item C<oauth2_class>
 
-Override this to cause C<LWP::Authen::OAuth2->new(...)> to return an object
+Override this to cause C<LWP::Authen::OAuth2-E<gt>new(...)> to return an object
 in a custom class.  This would be appropriate if people using your service
 provider need methods exposed that are not in L<LWP::Authen::OAuth2>.
 
@@ -648,11 +654,12 @@ Your files need to be included in the C<MANIFEST> in the root directory.
 A developer should be able to read your module and know how to register
 themselves as a client of the service provider.
 
-=item * List Useful Flows
+=item * List Client Types
 
-Please list the flows that the service provider uses, with just enough
-detail that a developer can figure out which one to use.  Listed flows
-should, of course, also be implemented.
+Please list the client types that the service provider uses, with just
+enough detail that a developer can figure out which one to use.  Listed
+types should, of course, either be implemented or be documented as not
+implemented.
 
 =item * Document important quirks
 

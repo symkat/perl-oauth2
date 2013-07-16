@@ -37,11 +37,11 @@ sub init {
     my $service_provider = $self->{service_provider};
     my $for_service_provider = LWP::Authen::OAuth2::Args->new();
     my %is_seen;
-    for my $opt (@{ $service_provider->{required_defaults} }) {
+    for my $opt (@{ $service_provider->{required_init} }) {
         $is_seen{$opt}++;
         $for_service_provider->copy_option(\%opts, $opt);
     }
-    for my $opt (@{ $service_provider->{more_defaults} }) {
+    for my $opt (@{ $service_provider->{optional_init} }) {
         if (not $is_seen{$opt}) {
             $is_seen{$opt}++;
             $for_service_provider->copy_option(\%opts, $opt, undef);
@@ -289,11 +289,11 @@ LWP::Authen::OAuth2 - Make requests to OAuth2 APIs.
 
 =head1 VERSION
 
-Version 0.02
+Version 0.03
 
 =cut
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 
 =head1 SYNOPSIS
@@ -335,31 +335,53 @@ Here are examples of simple usage.
                      token_string => $token_string.
                  );
 
-    # URL for user to visit to start the process.
+    # URL for user to go to to start the process.
     my $url = $oauth2->authorization_url();
 
-    # Get your tokens from the service provider.
+    # The authorization_url sends the user to the service provider to
+    # say that you want to be authorized.  After the user confirms that
+    # request, the service provider sends the user back to you with a
+    # code.  This might be a CGI parameter, something that the user is
+    # supposed to paste to you - that's between you and the service
+    # provider.
+
+    # Assuming that you have your code, get your tokens from the service
+    # provider.
     $oauth2->request_tokens(code => $code);
 
     # Get your token as a string you can easily store, pass around, etc.
-    # If you passed in a save_tokens callback, that gets passed this.
+    # If you have a save_tokens callback, that gets passed this string
+    # whenever the tokens change.
+    #
+    # This string bears a suspicious resemblance to serialized JSON.
     my $token_string = $oauth2->token_string,
 
     # Access the API.  Consult the service_provider's documentation for when
-    # to do which.
-    $oauth2->get($url, %values);
-    $oauth2->post($url, %values);
-    $oauth2->put($url, %values);
-    $oauth2->delete($url, %values);
-    $oauth2->head($url, %values);
+    # to use which type of request.  Note that argument processing is the
+    # same as in LWP.  Thus the parameters array and headers hash are both
+    # optional.
+    $oauth2->get($url, \@parameters, %header);
+    $oauth2->post($url, \@parameters, %header);
+    $oauth2->put($url, \@parameters, %header);
+    $oauth2->delete($url, \@parameters, %header);
+    $oauth2->head($url, \@parameters, %header);
 
-    # In flows where you can't automatically refresh tokens, it is nice to
-    # know when to send the user back to the authorization_url...
+    # And if you need more flexibility, you can use LWP::UserAgent's request
+    # method
+    $oauth2->request($http_request, $content_file);
+    
+    # In some flows you can refresh tokens, in others you have to go through
+    # the handshake yourself.  This method lets you know whether a refresh
+    # looks possible.
+    $oauth2->can_refresh_tokens();
+
+    # This method lets you know when it is time to reauthorize so that you
+    # can find out in a nicer way than failing an API call.
     $oauth2->should_refresh();
 
 =head1 CONSTRUCTOR
 
-When you call C<LWP::Authen::OAuth2->new(...)>, arguments are passed as a
+When you call C<LWP::Authen::OAuth2-E<gt>new(...)>, arguments are passed as a
 key/value list.  They are processed in the following phases:
 
 =over 4
@@ -403,12 +425,15 @@ A list of prebuilt service provider classes is in
 L<LWP::Authen::OAuth2::ServiceProvider> as well as instructions for making a
 new one.
 
-=item C<< flow => $flow, >>
+=item C<< client_type => $name_of_client_type >>
 
-Service providers can choose to provide multiple flows, with different client
-interactions.  The base service provider class can support this by
-offering an optional C<flow> argument to get the right behavior.  See the
-service provider class for details.
+Some service providers will keep track of your client type ("webserver"
+application, "installed" application, etc), and will treat them differently.
+A base service provider class can choose to accept a C<client_type> parameter
+to let it know what to expect.
+
+Whether this is done, and the allowable values, are up to the service
+provider class.
 
 =back
 
@@ -436,14 +461,14 @@ Simple service providers can likely get by without this, but here is a list
 of those methods that can be specified instead in the constructor:
 
     # Arrayrefs
-    required_defaults
-    more_defaults
+    required_init
+    optional_init
     authorization_required_params
-    authorization_more_params
+    authorization_optional_params
     request_required_params
-    request_more_params
+    request_optional_params
     refresh_required_params
-    refresh_more_params
+    refresh_optional_params
 
     # Hashrefs
     authorization_default_params
@@ -500,8 +525,12 @@ A handler to be called before attempting to refresh tokens.  It is passed the
 C<$oauth2> object.  If it returns a token string, that will be used to
 generate tokens instead of going to the service provider.
 
-This hook is available in case you want logic to prevent multiple requests
-being sent at once to refresh tokens.  By default this is missing.
+The purpose of this hook is so that, even if you have multiple processes
+accessing an API simultaneously, only one of them will try to refresh tokens
+with the service provider.  (Service providers may dislike having multiple
+refresh requests arrive at once from the same consumer for the same user.)
+
+By default this is not provided.
 
 =item C<save_tokens =E<gt> \&save_tokens,>
 
@@ -509,7 +538,8 @@ Whenever tokens are returned from the service provider, this callback will
 receive a token string that can be stored and then retrieved in another
 process that needs to construct a C<$oauth2> object.
 
-By default this is missing.  However it is useful for many use cases.
+By default this is not provided.  However if you intend to access the
+API multiple times from multiple processes, it is recommended.
 
 =item C<token_string =E<gt> $token_string,>
 
@@ -547,16 +577,16 @@ consumer.
 Generate a URL for the user to go to to request permissions.  By default the
 C<response_type> and C<client_id> are defaulted, and all of C<redirect_uri>,
 C<state> and C<scope> are optional but not required.  However in practice
-this all varies by service provider and flow, so look for documentation on
-that for the actual list that you need.
+this all varies by service provider and client type, so look for
+documentation on that for the actual list that you need.
 
 =head2 C<$oauth2-E<gt>request_tokens(%opts)>
 
 Request tokens from the service provider (if possible).  By default the
 C<grant_type>, C<client_id> and C<client_secret> are defaulted, and the
 C<scope> is required.  However in practice this all varies by service
-provider and flow, so look for documentation on that for the actual list
-that you need.
+provider and client type, so look for documentation on that for the actual
+list that you need.
 
 =head2 C<$oauth2-E<gt>get(...)>
 
@@ -589,6 +619,10 @@ L<LWP::UserAgent>.)
 
 Issue any C<request> that you could issue with L<LWP::UserAgent>,
 except that it will be properly signed to go to an OAuth 2 protected URL.
+
+=head2 C<$oauth2-E<gt>can_refresh_tokens>
+
+Is sufficient information available to try to refresh tokens?
 
 =head2 C<$oauth2-E<gt>should_refresh()>
 

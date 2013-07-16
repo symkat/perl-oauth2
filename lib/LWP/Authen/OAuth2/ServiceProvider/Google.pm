@@ -18,9 +18,9 @@ sub authorization_required_params {
     return ("scope", $self->SUPER::authorization_required_params());
 }
 
-sub authorization_more_params {
+sub authorization_optional_params {
     my $self = shift;
-    return ("login_hint", $self->SUPER::authorization_more_params());
+    return ("login_hint", $self->SUPER::authorization_optional_params());
 }
 
 my %flow_class
@@ -102,19 +102,19 @@ package LWP::Authen::OAuth2::ServiceProvider::Google::WebServer;
 our @ISA = qw(LWP::Authen::OAuth2::ServiceProvider::Google);
 
 # Not guaranteed a refresh token, so require nothing.
-sub required_defaults {
+sub required_init {
     return ();
 }
 
-sub more_defaults {
+sub optional_init {
     return qw(redirect_uri scope client_id client_secret);
 }
 
-sub authorization_more_params {
+sub authorization_optional_params {
     my $self = shift;
     return (
         "access_type", "approval_prompt",
-        $self->SUPER::authorization_more_params()
+        $self->SUPER::authorization_optional_params()
     );
 }
 
@@ -129,12 +129,12 @@ LWP::Authen::OAuth2::ServiceProvider::Google - Access Google OAuth2 APIs
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =cut
 
 package LWP::Authen::OAuth2::ServiceProvider::Google;
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 =head1 SYNOPSIS
 

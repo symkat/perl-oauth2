@@ -94,14 +94,14 @@ the I<user> can be given for the I<consumer>, but it is probably the only
 one that makes sense for a Perl I<consumer>.)
 
 The I<redirect_uri> is often a C<https:///...> URL under your control.  You
-also are likely to have had to choose the exact variant of the protocol that
-the I<service provider> should assume you are using, which is called a
-I<flow>.
+also are likely to have had to tell the I<service provider> about what type
+of software you're writing (webserver, command line, etc).  This determines
+your I<client type>.  They may call this a scenario, or I<flow>, or something
+else.
 
 You will also need information about the I<service provider>.  Specifically
-you will need to have an I<Authorization Endpoint> and a I<Token Endpoint>.
-They likely will have important documentation that you will want to read,
-including documentation for the APIs that you want to be able to access.
+you will need to know their I<Authorization Endpoint> and I<Token Endpoint>.
+They hopefully also have useful documentation about things like their APIs.
 
 L<LWP::Authen::OAuth2> is not directly involved in this step.
 
@@ -194,20 +194,20 @@ L<LWP::Authen::OAuth2> will perform this refresh/retry logic for you
 automatically if possible, and provides a hook for you to know to save the
 updated token data.
 
-Some I<flow>s do not support this pattern.  You are only given an
-I<access token> and are expected to go through the handshake again when
-that expires.  In this case the redirect on the I<service provider>'s side is
-immediate, so the user experience is seamless.  However since
-L<LWP::Authen::OAuth2> does not try to automate that handshake, on these
-I<flow>s you will need to detect that and do the handshake yourself.  You
-get your choice from L<LWP::Authen::OAuth2> of detecting it through a
-callback, or by trapping an error.
+Some I<client type>s are not expected to use this pattern.  You are only
+given an I<access token> and are expected to send the user through the
+handshake again when that expires.  The second time through the redirect on
+the I<service provider>'s side is immediate, so the user experience should be
+seamless.  However L<LWP::Authen::OAuth2> does not try to automate that
+logic.  But C<$oauth2-E<gt>should_refresh> can let you know when it is time
+to send the user through, and C<$oauth2-E<gt>can_refresh_tokens> will let you
+know whether automatic refreshing is available.
 
-Also even if you are in a I<flow> that supports it, retry success is not
-guaranteed.  The I<user> may revoke your access, the I<service provider> may
-decide you are a suspicious character, there may have been a service outage,
-etc.  L<LWP::Authen::OAuth2> will let you know if this happened, and it is
-your decision how to deal with it.
+Note that even if it is available, retry success is not guaranteed.  The
+I<user> may revoke your access, the I<service provider> may decide you are a
+suspicious character, there may have been a service outage, etc.
+L<LWP::Authen::OAuth2> will throw errors on these error conditions, handling
+them is up to you.
 
 =back
 
@@ -244,8 +244,9 @@ you.
 
 The software on the I<consumer>'s side which actually will access the API.
 From a I<consumer>'s point of view, a I<consumer> and the I<client> are
-pretty close to the same thing.  But, in fact, a single I<consumer> may
-actually have multiple I<client>s.
+usually the same thing.  But, in fact, a single I<consumer> may actually
+write multiple I<client>s.  And if one is a web application while another is
+a command line program, the differences can matter to how OAuth 2 will work.
 
 Where I have a choice in this document I say I<consumer> rather than
 I<client> because that term is less likely overloaded in most
@@ -297,63 +298,65 @@ was asked to do.
 Organizing internal responsibilities in this manner makes it easier for many
 independent teams in a large company to write public APIs.
 
-=item flow
+=item client type
 
-Several different mechanisms are used to pass information during the
-handshake, ranging from sending redirects to the I<user> to telling the
-I<user> to enter data by hand.  The exact variation used is called your
-I<flow>.
-
-It is, of course, up to the I<service provider> what I<flow>s are available
-and what they are called.  Here is a list of common ones from
-L<http://tools.ietf.org/html/rfc6749#section-2.1|RFC 6749>.
+The I<service provider> internally tags each I<client> with a I<client type>
+which tells it something about what environment it is in, and how it
+interacts with the I<user>.  Are are the basic types listed in
+L<RFC 6749|http://tools.ietf.org/html/rfc6749#section-2.1>:
 
 =over 4
 
 =item web application
 
 Runs on a web server.  Is expected to keep secrets.  Likely to be appropriate
-for a Perl I<consumer>.
+for a Perl I<client>.
 
 =item user-agent-based application
 
 JavaScript application running in a browser that wants to make AJAX calls.
-Can't keep secrets.  A Perl I<consumer> should not choose this.
+Can't keep secrets.  Does not make sense for A Perl I<client>.
 
 =item native application
 
 Application installed on a I<user>'s machine.  Can't keep secrets.  Possibly
-appropriate for a Perl I<consumer>.  It is not impossible that for some
-applications and I<service provider>s this will be the most convenient choice
-even if it is not a perfect fit.
+appropriate for a Perl I<client>.
 
 =back
 
-Just to give a sense of variability, as of the time of this writing, Google
-documents no less than six I<flow>s at
+Of course all of this is up to the I<service provider>.  For example at the
+time of this writing, Google documents no less than six I<client type>s at
 L<https://developers.google.com/accounts/docs/OAuth2>, none of which have
-been given the above names.  They rename the top two, split
-I<native application> into two based on whether your application controls a
-browser, and add two new ones.  Half require interactions that are not
-described in the specification, and the rest have added optional arguments.
+been given the above names.  (They also call them "Scenarios" rather than
+I<client type>.)  They rename the top two, split I<native application> into
+two based on whether your application controls a browser, and add two new
+ones.
+
+=item flow
+
+Your I<flow> is the sequence and methods of interactions that set up
+authorization.  The I<flow> depends on your I<service provider> and
+I<client type>.  For example the I<service provider> might redirect the
+I<user> to a URL controlled by a web application, while instead for a native
+application the user is told to cut and paste a code somewhere.
+
+Despite I<flow> being more common terminology in OAuth 2, I<client type> is
+more self-explanatory, so I've generally gone with that instead.
 
 =item client_id
 
 The I<client_id> is a public ID that tells the I<service provider> about the
 I<client> that is accessing it.  That is, it says both who the I<consumer>
-is, and what I<flow> to use.  Being public, it can be shared
-with the I<user>.  The details of how this is assigned are between the
+is, and what the I<client type> is.  Being public, the I<client_id> can be
+shared with the I<user>.  The details of how this is assigned are between the
 I<consumer> and the I<service provider>.
 
 =item client_secret
 
 The I<client_secret> is a somewhat private piece of information that the
 I<consumer> can pass to the I<service provider> to prove that the request
-really comes from the I<consumer>.  How private this piece of information is
-considered will depend on the I<flow>.  A secret that is kept on a webserver
-is expected to be completely private.  One that is inside of an application
-running on the I<user>'s machine is trusted less.  (The consequences of this
-are up to the I<service provider>.)
+really comes from the I<consumer>.  How much this is trusted, and how it is
+used, will depend on the I<client type> and I<service provider>.
 
 =item redirect_uri
 
@@ -363,13 +366,18 @@ I<redirect_uri> which can be anything from a C<https://...> URL that the
 I<consumer> controls to an instruction that lets the I<service provider> know
 that it should tell the I<user> to cut and paste some information.
 
+It is up to the I<service provider> what values of are acceptable for the
+I<redirect_uri>, and whether it is a piece of information that is remembered
+or passed in during the authorization process.
+
 =item state
 
 The I<state> is an optional piece of information that can be created by the
 I<consumer> then added to all requests as an extra piece of protection
-against forgery.  It is optional for most I<flow>s, but is recommended by
-the OAuth 2 specification.  It is required in some I<flow>s by the
-I<service provider>.
+against forgery.  (You are supposed to create a random piece of information
+for each request, then check that you get it back.)  In the OAuth 2
+specification it is optional, but recommended.  Depending on the combination
+of your I<service provider> and I<client type>, it may be required.
 
 =item scope
 
@@ -393,9 +401,9 @@ the I<user>'s account.  This is part of the I<Authorization Server>.
 
 The I<response_type> tells the I<service provider> what kind of information
 it is supposed to pass back.  I am not aware of a case where a Perl I<client>
-could usefully use any value other than C<code>.  However there are flows
-which I<service provider>s can support which do other things.  For example
-the I<user-agent-based application> I<flow> will use a I<response_type> of
+could usefully use any value other than C<code>.  However there are I<flow>s
+where other things happen.  For example the I<flow> for the
+I<user-agent-based application> I<client type> uses a I<response_type> of
 I<token>.
 
 While the field is not very useful for Perl I<client>s, it is required in the
@@ -410,9 +418,9 @@ requested.
 It is constructed as the I<Authorization Endpoint> with get parameters added
 for the I<response_type>, I<client_id>, and optionally I<state>.  The
 specification mentions both I<redirect_uri> and I<scope> but does not
-actually mandate that they be accepted.  However they often are.  And,
-of course, a given service provider can add more parameters at will, and
-require (or not) different things by flow.
+actually mandate that they be accepted or required.  However they may be.
+And, of course, a given service provider can add more parameters at will, and
+require (or not) different things by I<client type>.
 
 An example URL for Google complete with optional extensions is
 L<https://accounts.google.com/o/oauth2/auth?scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile&state=%2Fprofile&redirect_uri=https%3A%2F%2Foauth2-login-demo.appspot.com%2Fcode&response_type=code&client_id=812741506391.apps.googleusercontent.com&approval_prompt=force>
@@ -430,7 +438,8 @@ success the I<service provider> will generate a one use I<authorization code>
 to give to the user to take back to the I<consumer>.  Depending on the
 I<flow> this could happen with no effort on the part of the I<user>.  For
 example the I<user> can be redirected to the I<redirect_uri> with the I<code>
-passed as a get parameter.  The web server would then pick these up, finish the handshake, and then redirect the user elsewhere.
+passed as a get parameter.  The web server would then pick these up, finish
+the handshake, and then redirect the user elsewhere.
 
 In all interactions where it is passed it is simply called the I<code>.  But
 it is described in one interaction as an I<authorization_code>.
@@ -451,12 +460,11 @@ C<authorization_code>.  If they were being consistent, then that would be
 I<code> like it is everywhere else, but that's what the spec says.
 
 We will later encounter the I<grant_type> C<refresh_token>.  The
-specification includes more that might prove useful depending on your I<flow>
-and I<service provider>.  However programmers using L<LWP::Authen::OAuth2>
-are only likely to directly encounter them when subclassing
-L<LWP::Authen::OAuth2::ServiceProvider>, and hopefully will discover the
-applicability of those I<grant_type>s from the I<service provider>'s
-documentation.
+specification includes potential requests that can be in a I<flow> that might
+prove useful.   However you are only likely to encounter that if you are
+subclassing L<LWP::Authen::OAuth2::ServiceProvider>.  In that case you will
+hopefully discover the applicability and details of those I<grant_type>s from
+the I<service provider>'s documentation.
 
 =item Access Token Request
 
@@ -490,7 +498,7 @@ and the response if you're lucky will look something like:
       "access_token":"1/fFAGRNJru1FTz70BzhT3Zg",
       "expires_in":3920,
       "token_type":"Bearer",
-      "request_token":"1/xEoDL4iW3cxlI7yDbSRFYNG01kVKM2C-259HOF2aQbI"
+      "refresh_token":"1/xEoDL4iW3cxlI7yDbSRFYNG01kVKM2C-259HOF2aQbI"
     }
 
 or if you're unlucky, maybe like this:
@@ -520,8 +528,12 @@ that to skip the handshake if possible.
 
 The I<token_type> is a case insensitive description of the type of token
 that you could be given.  In theory there is a finite list of types that you
-could encounter.  In practice I<service provider>s can add more, and it is
-not guaranteed that they will correctly implement 
+could encounter.  In practice I<service provider>s can add more at any time,
+either intentionally or unintentionally by failing to correctly implement the
+one that they claimed to have created.
+
+See L<LWP::Authen::OAuth2::AccessToken> for advice on how to add support for
+a new or incorrectly implemented I<token_type>.
 
 =item expires_in
 
@@ -539,6 +551,10 @@ response the C<access_token> is the value of the token, C<expires_in> is the
 number of seconds it is good for in theory (practice tends to be close but
 not always exact), and C<token_type> specifies how it is supposed to be used.
 
+Once the authorization handshake is completed, if the I<access_token> has a
+supported I<token_type>. then L<LWP::Authen::OAuth2> will automatically sign
+any requests for you.
+
 =item Bearer token
 
 If the I<token_type> is C<bearer> (case insensitive), then you should have a
@@ -550,30 +566,21 @@ sending an https request with a header of:
     Authorization: Bearer 1/fFAGRNJru1FTz70BzhT3Zg
 
 You can also sign by passing C<access_token=...> as a post or get parameter,
-though the specification recommends against using a get parameter.
+though the specification recommends against using a get parameter.  If you
+are using L<LWP::Authen::OAuth2>, then it is signed with the header.
 
-This is the most common type of I<access_token>.  However depending on the
-I<service provider> and I<flow> you could be handed another.
+=item refresh_token
 
-Once you have completed your handshake, L<LWP::Authen::OAuth2> will
-automatically sign any C<get>, C<post>, or C<put> for you if it understands
-the token type.  If you run across a token type that is not already in the
-distribution (or is in the distribution, but your I<service provider>'s
-version has "quirks") see
-L<LWP::Authen::OAuth2::AccessToken> for advice on how to add support.
-
-=item request_token
-
-The above example also included a I<request_token>.  If you were given one,
-you can use it later to ask for a fresh I<access_token>.  Whether you get
+The above example also included a I<refresh_token>.  If you were given one,
+you can use it later to ask for a refreshed I<access_token>.  Whether you get
 one is up to your I<service provider>, who is likely to decide that based on
-your I<flow>.
+your I<client_type>.
 
 =item Refresh Access Token
 
-If you have a I<request_token>, you can at any time send a
+If you have a I<refresh_token>, you can at any time send a
 I<Refresh Access Token> request.  This is a POST to the I<Token Endpoint>
-with the I<request_token>, I<client_id> and I<client_secret> arguments.  You
+with the I<refresh_token>, I<client_id> and I<client_secret> arguments.  You
 also have to send a I<grant_type> of C<refresh_token>.
 
 Thus in the above case we'd send
@@ -582,7 +589,7 @@ Thus in the above case we'd send
     Host: accounts.google.com
     Content-Type: application/x-www-form-urlencoded
     
-    request_token=1/xEoDL4iW3cxlI7yDbSRFYNG01kVKM2C-259HOF2aQbI&
+    refresh_token=1/xEoDL4iW3cxlI7yDbSRFYNG01kVKM2C-259HOF2aQbI&
     client_id=8819981768.apps.googleusercontent.com&
     client_secret={client_secret}&
     grant_type=refresh_token
@@ -600,7 +607,7 @@ and if lucky could get a response like
       "token_type":"Bearer",
     }
 
-and if unlucky could get an error as above.
+and if unlucky could get an error as before.
 
 In L<LWP::Authen::OAuth2> this request is made for you transparently behind
 the scenes if possible.  If you're curious when, look in the source for the
@@ -609,12 +616,11 @@ can pass to let you save the tokens, or hijack the refresh method for your
 own purposes.  (Such as making sure that only one process tries to refresh
 tokens even though many are accessing it.)
 
-But note that not all flows offer a refresh token or the possibility of this
-request.  If you're on one of those flows then you need to send the I<user>
-back to the I<service provider> for authorization renewal.  From the
-I<user>'s point of view this is likely to be painless because it will be done
-with transparent redirects.  But there is no hiding the need for this from
-the I<consumer>.
+But note that not all I<flow>s offer a I<refresh_token>.  If you're on one
+of those I<flow>s then you need to send the I<user> back to the
+I<service provider> for authorization renewal.  From the I<user>'s point of
+view this is likely to be painless because it will be done with transparent
+redirects.  But the I<consumer> needs to be aware of it.
 
 =back
 
