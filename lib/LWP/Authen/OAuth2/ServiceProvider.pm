@@ -442,7 +442,7 @@ hopefully useful configuration and documentation:
 
 =over 4
 
-=item * L<LWP::Authen::OAuth2::ServiceProvider::Google|Google>
+=item L<LWP::Authen::OAuth2::ServiceProvider::Google|Google>
 
 =back
 
@@ -624,53 +624,53 @@ that does the following:
 
 =over 4
 
-=item * Implement your provider
+=item Implement your provider
 
 The more completely implemented, the better.
 
-=item * Name it properly
+=item Name it properly
 
 The name should be of the form:
 
     LWP::Authen::OAuth2::ServiceProvider::$ServiceProvider
 
-=item * List it
+=item List it
 
 It needs to be listed as a known service provider in this module.
 
-=item * Test it
+=item Test it
 
 It is impossible to usefully test a service provider module without client
 secrets.  However you can have public tests that it compiles, and private
 tests that will, if someone supplies the necessary secrets, run fuller tests
 that all works.  See the existing unit tests for examples.
 
-=item * Include it
+=item Include it
 
 Your files need to be included in the C<MANIFEST> in the root directory.
 
-=item * Document Client Registration
+=item Document Client Registration
 
 A developer should be able to read your module and know how to register
 themselves as a client of the service provider.
 
-=item * List Client Types
+=item List Client Types
 
 Please list the client types that the service provider uses, with just
 enough detail that a developer can figure out which one to use.  Listed
 types should, of course, either be implemented or be documented as not
 implemented.
 
-=item * Document important quirks
+=item Document important quirks
 
 If the service provider requires or allows useful parameters, try to mention
 them in your documentation.
 
-=item * Document limitations
+=item Document limitations
 
 If there are known limitations in your implementation, please state them.
 
-=item * Link to official documentation
+=item Link to official documentation
 
 If the service provider provides official OAuth 2 documentation, please link
 to it.  Ideally a developer will not need to refer to it, but should know how
@@ -701,23 +701,23 @@ You can also look for information at:
 
 =over 4
 
-=item * Github (submit patches here)
+=item Github (submit patches here)
 
 L<https://github.com/btilly/perl-oauth2>
 
-=item * RT: CPAN's request tracker (report bugs here)
+=item RT: CPAN's request tracker (report bugs here)
 
 L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=LWP-Authen-OAuth2>
 
-=item * AnnoCPAN: Annotated CPAN documentation
+=item AnnoCPAN: Annotated CPAN documentation
 
 L<http://annocpan.org/dist/LWP-Authen-OAuth2>
 
-=item * CPAN Ratings
+=item CPAN Ratings
 
 L<http://cpanratings.perl.org/d/LWP-Authen-OAuth2>
 
-=item * Search CPAN
+=item Search CPAN
 
 L<http://search.cpan.org/dist/LWP-Authen-OAuth2/>
 

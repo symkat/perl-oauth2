@@ -386,13 +386,13 @@ key/value list.  They are processed in the following phases:
 
 =over 4
 
-=item * Construct service provider
+=item Construct service provider
 
-=item * Service provider collects arguments it wants
+=item Service provider collects arguments it wants
 
-=item * L<LWP::Authen::OAuth2> overrides defaults from arguments
+=item L<LWP::Authen::OAuth2> overrides defaults from arguments
 
-=item * Sanity check
+=item Sanity check
 
 =back
 
@@ -400,7 +400,7 @@ Here are those phases in more detail.
 
 =over 4
 
-=item * Construct service provider
+=item Construct service provider
 
 There are two ways to construct a service provider.
 
@@ -477,7 +477,7 @@ of those methods that can be specified instead in the constructor:
 
 =back
 
-=item * Service provider collects arguments it wants
+=item Service provider collects arguments it wants
 
 In general, arguments passed into the constructor do not have to be passed
 into individual method calls.  Furthermore in order to be able to do the
@@ -492,7 +492,7 @@ default.)
 
 However what is required is up to the service provider.
 
-=item * L<LWP::Authen::OAuth2> overrides defaults from arguments
+=item L<LWP::Authen::OAuth2> overrides defaults from arguments
 
 The following defaults are available to be overridden in the constructor, or
 can be overridden later.  In the unlikely event that there is a conflict with
@@ -554,7 +554,7 @@ L<lWP::UserAgent> created on the fly.
 
 =back
 
-=item * Sanity check
+=item Sanity check
 
 Any arguments that are left over are assumed to be mistakes and a fatal
 warning is generated.
@@ -688,23 +688,23 @@ You can also look for information at:
 
 =over 4
 
-=item * Github (submit patches here)
+=item Github (submit patches here)
 
 L<https://github.com/btilly/perl-oauth2>
 
-=item * RT: CPAN's request tracker (report bugs here)
+=item RT: CPAN's request tracker (report bugs here)
 
 L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=LWP-Authen-OAuth2>
 
-=item * AnnoCPAN: Annotated CPAN documentation
+=item AnnoCPAN: Annotated CPAN documentation
 
 L<http://annocpan.org/dist/LWP-Authen-OAuth2>
 
-=item * CPAN Ratings
+=item CPAN Ratings
 
 L<http://cpanratings.perl.org/d/LWP-Authen-OAuth2>
 
-=item * Search CPAN
+=item Search CPAN
 
 L<http://search.cpan.org/dist/LWP-Authen-OAuth2/>
 
