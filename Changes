@@ -10,3 +10,10 @@ Revision history for LWP-Authen-OAuth2
         Removed or fixed those.  (Really, I do not want to have end user
         documentation in subclasses of parent methods that they were
         supposed to override.)
+
+0.02    20130715 - 7:26 PM PDT
+        - Find more dependencies.
+        - Rename flow to client_type in many places.
+        - Rename *_more_* to *_optional_* in ServiceProvider.
+        - Rename *_defaults to *_init to be more descriptive.
+        - Another documentation pass.
