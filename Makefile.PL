@@ -19,7 +19,7 @@ WriteMakefile(
     },
     PREREQ_PM => {
         'LWP'               => 4.0,
-        'HTTP::Protocol::https' => 6.0,
+        'LWP::Protocol::https' => 6.0,
         'Mozilla::CA'       => 20000101,
         'JSON'              => 2,
     },
