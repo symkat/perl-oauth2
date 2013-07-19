@@ -148,7 +148,7 @@ If you succeeded, you will receieve a I<code> in some way.  For instance if
 your I<redirect_uri> is a URL, it will have a get parameter named C<code>.
 
 You could get an C<error> parameter back instead.  See
-L<http://http://tools.ietf.org/html/rfc6749#section-4.1.2.1|RFC 6749> for a
+L<RFC 6749|http://tools.ietf.org/html/rfc6749#section-4.1.2.1> for a
 list of the possible errors.  Note that there are possible optional fields
 with extra detail.  I would not advise optimism about their presence.
 
@@ -559,7 +559,7 @@ any requests for you.
 
 If the I<token_type> is C<bearer> (case insensitive), then you should have a
 I<bearer token> as described by
-L<http://tools.ietf.org/html/rfc6750|RFC 6750>.  For as long as the token is
+L<RFC 6750|http://tools.ietf.org/html/rfc6750>.  For as long as the token is
 good, any request signed with it is authorized.  Signing is as simple as
 sending an https request with a header of:
 

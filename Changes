@@ -11,9 +11,12 @@ Revision history for LWP-Authen-OAuth2
         documentation in subclasses of parent methods that they were
         supposed to override.)
 
-0.02    20130715 - 7:26 PM PDT
+0.03    20130715 - 7:26 PM PDT
         - Find more dependencies.
         - Rename flow to client_type in many places.
         - Rename *_more_* to *_optional_* in ServiceProvider.
         - Rename *_defaults to *_init to be more descriptive.
         - Another documentation pass.
+
+0.04    20130717 - 6:34 PM PDT
+        - Fix 2 minor POD formatting mistakes.
