@@ -37,7 +37,7 @@ our $VERSION = '0.02';
 =head1 SYNOPSIS
 
 This implements bearer tokens.  See
-L<http://tools.ietf.org/html/rfc6750|RFC 6750> for details,
+L<RFC 6750|http://tools.ietf.org/html/rfc6750> for details,
 L<LWP::Authen::OAuth2::AccessToken> for how this module works, and
 L<LWP::Authen::OAuth2> for the interface to use to this module.
 
