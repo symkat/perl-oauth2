@@ -289,11 +289,11 @@ LWP::Authen::OAuth2 - Make requests to OAuth2 APIs.
 
 =head1 VERSION
 
-Version 0.06
+Version 0.07
 
 =cut
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 
 =head1 SYNOPSIS
@@ -718,6 +718,9 @@ letting me develop and release this module.  My thanks also to Nick
 Wellnhofer <wellnhofer@aevum.de> for Net::Google::Analytics::OAuth2 which
 was very enlightening while I was trying to figure out the details of how to
 connect to Google with OAuth2.
+
+Thanks to Thomas Klausner aka domm for reporting that client type specific
+parameters were not available when the client type was properly specified.
 
 =head1 LICENSE AND COPYRIGHT
 

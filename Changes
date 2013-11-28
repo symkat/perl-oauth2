@@ -29,3 +29,6 @@ Revision history for LWP-Authen-OAuth2
         - Catch that the Google service provider was missing
           s/flow/client_type/.
         - Make syntax errors in a service provider less confusing to debug.
+
+0.07    20131128 - 7:47 AM PST
+        - Property acknowledge domm
