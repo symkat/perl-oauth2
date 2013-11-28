@@ -22,7 +22,7 @@ WriteMakefile(
         'LWP::Protocol::https' => 6.0,
         'Mozilla::CA'       => 20000101,
         'JSON'              => 2,
-        'Module::Load'      => undef,
+        'Module::Load'      => 0,
     },
     dist  => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean => { FILES => 'LWP-Authen-OAuth2-*' },
