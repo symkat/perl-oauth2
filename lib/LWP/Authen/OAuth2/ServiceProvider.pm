@@ -4,7 +4,7 @@ use 5.006;
 use strict;
 use warnings;
 
-use Carp qw(croak);
+use Carp qw(confess croak);
 use JSON qw(decode_json);
 use Memoize qw(memoize);
 use Module::Load qw(load);
@@ -322,19 +322,25 @@ sub service_provider_class {
     eval {
         load("LWP::Authen::OAuth2::ServiceProvider::$short_name");
     };
-    if ($@) {
+    if (not $@) {
+        return "LWP::Authen::OAuth2::ServiceProvider::$short_name";
+    }
+    elsif ($@ =~ /Compilation failed/) {
+        confess($@);
+    }
+    else {
         eval {
             load($short_name);
         };
-        if ($@) {
-            croak("Service provider '$short_name' not found");
-        }
-        else {
+        if (not $@) {
             return $short_name;
         }
-    }
-    else {
-        return "LWP::Authen::OAuth2::ServiceProvider::$short_name";
+        elsif ($@ =~ /Compilation failed/) {
+            confess($@);
+        }
+        else {
+            croak("Service provider '$short_name' not found");
+        }
     }
 }
 

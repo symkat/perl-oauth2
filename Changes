@@ -23,3 +23,9 @@ Revision history for LWP-Authen-OAuth2
 
 0.05    20130720 - 12:38 PM PDT
         - There was another (why don't I get to see these???)
+
+0.06    20131128 - 7:47 AM PST
+        - Add Module::Load dependency
+        - Catch that the Google service provider was missing
+          s/flow/client_type/.
+        - Make syntax errors in a service provider less confusing to debug.

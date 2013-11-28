@@ -23,7 +23,7 @@ sub authorization_optional_params {
     return ("login_hint", $self->SUPER::authorization_optional_params());
 }
 
-my %flow_class
+my %client_type_class
     = (
           default => "WebServer",
           device => "Device",
@@ -33,14 +33,14 @@ my %flow_class
           service => "Service",
       );
 
-sub flow_class {
-    my ($class, $flow) = @_;
-    if (exists $flow_class{$flow}) {
-        return "LWP::Authen::OAuth2::ServiceProvider::Google::$flow_class{$flow}";
+sub client_type_class {
+    my ($class, $client_type) = @_;
+    if (exists $client_type_class{$client_type}) {
+        return "LWP::Authen::OAuth2::ServiceProvider::Google::$client_type_class{$client_type}";
     }
     else {
-        my $allowed = join ", ", sort keys %flow_class;
-        Carp::croak("Flow '$flow' not in: $allowed");
+        my $allowed = join ", ", sort keys %client_type_class;
+        Carp::croak("Flow '$client_type' not in: $allowed");
     }
 }
 
@@ -140,8 +140,8 @@ our $VERSION = '0.02';
 
 See L<LWP::Authen::OAuth2> for basic usage.  The one general note is that
 C<scope> is C<scope> is optional in the specification, but required for
-Google.  Beyond that Google supports many flows, and their behavior varies
-widely.
+Google.  Beyond that Google supports many client types, and their behavior
+varies widely.
 
 See L<https://developers.google.com/accounts/docs/OAuth2> for Google's
 own documentation.  The documentation here is a Cliff Notes version of that,
@@ -151,10 +151,11 @@ so look there for any necessary clarification.
 
 Before you can use OAuth 2 with Google you need to register yourself as a
 client.  For that, go to L<https://code.google.com/apis/console>.  Follow
-their directions to create a project, choose your C<flow> (look ahead for
-advice on available flows), and then you'll be given a C<client_id> and
-C<client_secret>.  If you're in the Login, WebServer or Client flows you'll
-also need to register a C<redirect_uri> with them, which will need to be an
+their directions to create a project, choose your C<flow> (which is called
+your C<client_type> in this document - look ahead for advice on available
+types), and then you'll be given a C<client_id> and C<client_secret>.  If
+you're in the Login, WebServer or Client client types you'll also need to
+register a C<redirect_uri> with them, which will need to be an
 C<https://...> URL under your control.
 
 At that point you have all of the facts that you need to use this module.  Be
@@ -164,9 +165,10 @@ starts abusing it, Google reserves the right to block you.
 This module only handles the authorization step, after which it is up to you
 to figure out how to use whatever API you want to access.
 
-=head1 FLOWS
+=head1 CLIENT TYPES
 
-Google offers many flows.  Here is the status of each one in this module:
+Google offers many client types.  Here is the status of each one in this
+module:
 
 =over 4
 
@@ -188,10 +190,10 @@ documentation.
 
 It can be specified in the constructor with:
 
-    flow => "web server",
+    client_type => "web server",
 
-however that is not necessary since it is also the assumed default if no flow
-is specified.
+however that is not necessary since it is also the assumed default if no
+client_type is specified.
 
 After registering yourself as a client with Google, you will need to specify
 the C<redirect_uri> as an https URL under your control.  If you just need
@@ -200,11 +202,11 @@ that URL - just go through the authorization as those accounts and grab your
 C<code> from the URL.  If you will support many, making that URL useful is
 your responsibility.
 
-With this flow you are not guaranteed a refresh token, so the constructor
-does not require C<client_id> and C<client_secret>.  (Passing them there is
-still likely to be convenient for you.) However there are several optional
-arguments available to C<$oauth2-E<gt>authorization_url(...)> that are worth
-taking note of:
+With this client type you are not guaranteed a refresh token, so the
+constructor does not require C<client_id> and C<client_secret>.  (Passing them
+there is still likely to be convenient for you.) However there are several
+optional arguments available to C<$oauth2-E<gt>authorization_url(...)> that
+are worth taking note of:
 
 =over 4
 
@@ -237,7 +239,7 @@ the same time.
 
 =item Client-side Application
 
-This flow is only for JavaScript applications.  See
+This client type is only for JavaScript applications.  See
 L<https://developers.google.com/accounts/docs/OAuth2UserAgent> for Google's
 documentation.
 
@@ -245,14 +247,14 @@ This is not supported since Perl is not JavaScript.
 
 =item Installed Application
 
-This flow is for applications that run on the user's machine, which can
+This client type is for applications that run on the user's machine, which can
 control a browser.  See
 L<https://developers.google.com/accounts/docs/OAuth2InstalledApp> for
 Google's documentation.
 
 It can be specified in the constructor with:
 
-    flow => "web server",
+    client_type => "web server",
 
 On the first time it is the client's responsibility to open a browser and
 send the user to C<$oauth2->authorization_url(...)>.  If you pass in
@@ -270,18 +272,18 @@ same thing that it does for webserver applications.
 
 =item Devices
 
-This flow is for applications that run on the user's machine, which do not
-control a browser.  See
+This client_type is for applications that run on the user's machine, which do
+not control a browser.  See
 L<https://developers.google.com/accounts/docs/OAuth2ForDevices> for Google's
 documentation.
 
-This flow is not supported because I have not yet thought through how to
+This client_type is not supported because I have not yet thought through how to
 handle the required polling step of setting up permissions.
 
 =item Service Account
 
-This flow is for applications that login to the developer's account using the
-developer's credentials.  See
+This client_type is for applications that login to the developer's account
+using the developer's credentials.  See
 L<https://developers.google.com/accounts/docs/OAuth2ServiceAccount> for
 Google's documentation.
 
@@ -296,7 +298,7 @@ Ben Tilly, C<< <btilly at gmail.com> >>
 
 =head1 BUGS
 
-The main bug is that out of 6 flows, 5 of which could reasonably be
+The main bug is that out of 6 client types, 5 of which could reasonably be
 supported, only two are so far.
 
 Please report any bugs or feature requests to
