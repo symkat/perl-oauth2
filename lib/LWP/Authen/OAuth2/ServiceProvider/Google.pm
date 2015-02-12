@@ -212,7 +212,7 @@ are worth taking note of:
 
 =item C<access_type>
 
-Pass C<access_type =E<gt> "offline",> to C<$oauth2->request_tokens(...)> to
+Pass C<access_type =E<gt> "offline",> to C<$oauth2->authorization_url(...)> to
 request offline access.  This means that you get a C<refresh_token> which can
 be used to refresh the access token without help from the user.  The intent
 of this option is to support things like software that delays posting a blog
@@ -223,7 +223,7 @@ but then it worked perfectly.
 
 =item C<approval_prompt>
 
-Pass C<approval_prompt =E<gt> "force",> to C<$oauth2->request_tokens(...)> to
+Pass C<approval_prompt =E<gt> "force",> to C<$oauth2->authorization_url(...)> to
 force the user to see the approval screen.  The default behavior without this
 is that the user sees the approval screen the first time through, and on
 subsequent times just gets an immediate redirect.
